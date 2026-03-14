@@ -1,0 +1,50 @@
+<script lang="ts">
+	import { typeColors } from '$lib/data/kingdoms.js';
+	import type { Kingdom, Artifact } from '$lib/data/types.js';
+
+	interface Props {
+		x: number;
+		y: number;
+		kingdom?: Kingdom | null;
+		artifact?: Artifact | null;
+		containerWidth?: number;
+		containerHeight?: number;
+	}
+
+	let { x, y, kingdom = null, artifact = null, containerWidth = 0, containerHeight = 0 }: Props = $props();
+
+	const visible = $derived(!!(kingdom || artifact));
+
+	// Flip to the left if near the right edge
+	const flipX = $derived(x > containerWidth * 0.65);
+	const flipY = $derived(y > containerHeight * 0.75);
+</script>
+
+{#if visible}
+	<div
+		class="absolute z-10 pointer-events-none"
+		style="left: {x}px; top: {y}px; transform: translate({flipX ? 'calc(-100% - 12px)' : '12px'}, {flipY ? '-100%' : '-50%'})"
+	>
+		<div class="bg-stone-900/95 border border-stone-600 rounded-lg shadow-2xl p-2.5 min-w-36 max-w-52">
+			{#if kingdom}
+				<div class="flex items-center gap-1.5 mb-1">
+					<div class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {kingdom.color}"></div>
+					<span class="text-sm font-serif text-amber-300 leading-tight">{kingdom.name}</span>
+				</div>
+				<div class="inline-block px-1.5 py-0.5 rounded text-xs text-white mb-1.5" style="background-color: {kingdom.color}">
+					{typeColors[kingdom.type].label}
+				</div>
+				<p class="text-xs text-stone-400 leading-snug">{kingdom.territory}</p>
+			{:else if artifact}
+				<div class="flex items-center gap-2 mb-1">
+					<span class="text-xl">{artifact.image}</span>
+					<div>
+						<div class="text-sm font-serif text-amber-300 leading-tight">{artifact.name}</div>
+						<div class="text-xs text-stone-500">c. {artifact.year} CE</div>
+					</div>
+				</div>
+				<p class="text-xs text-stone-400 leading-snug">{artifact.description}</p>
+			{/if}
+		</div>
+	</div>
+{/if}
