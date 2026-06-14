@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { initMap, resizeMap, updateKingdoms, updateArtifacts } from '$lib/map/renderer.js';
+	import { Plus, Minus, Maximize2 } from 'lucide-svelte';
+	import { initMap, resizeMap, updateKingdoms, updateArtifacts, zoomIn, zoomOut, resetZoom } from '$lib/map/renderer.js';
 	import { mapStore } from '$lib/stores/map.svelte.js';
 	import Tooltip from '$lib/components/Tooltip.svelte';
 	import type { Kingdom, Artifact } from '$lib/data/types.js';
@@ -28,6 +29,11 @@
 		tooltipKingdom = null;
 		tooltipX = x;
 		tooltipY = y;
+	}
+
+	function handleBackgroundClick() {
+		mapStore.clearKingdom();
+		mapStore.clearArtifact();
 	}
 
 	// Called by zoom events so labels can recompute visibility thresholds
@@ -98,13 +104,17 @@
 		const observer = new ResizeObserver((entries) => {
 			const entry = entries[0];
 			if (!entry) return;
-			const { width } = entry.contentRect;
-			const w = Math.max(300, width);
-			const h = Math.max(400, width * 1.4);
+			const { width, height } = entry.contentRect;
+			// Preserve the projection's 1:1.4 aspect while fitting BOTH dimensions,
+			// so the map never overflows vertically on wide/short desktop viewports.
+			const availW = Math.max(300, width);
+			const availH = Math.max(400, height);
+			const h = Math.min(availW * 1.4, availH);
+			const w = Math.max(300, h / 1.4);
 
 			if (!mapInitialised && svgEl) {
 				dimensions = { width: w, height: h };
-				initMap(svgEl, w, h, onZoom);
+				initMap(svgEl, w, h, onZoom, handleBackgroundClick);
 				mapInitialised = true;
 				// Draw initial data
 				updateKingdoms(
@@ -138,6 +148,31 @@
 		height={dimensions.height}
 		class="rounded-lg shadow-2xl"
 	></svg>
+
+	<!-- Zoom controls -->
+	<div class="absolute top-4 right-4 flex flex-col gap-1.5 z-10">
+		<button
+			onclick={() => { if (svgEl && mapInitialised) zoomIn(svgEl); }}
+			class="w-11 h-11 flex items-center justify-center bg-stone-800/90 hover:bg-stone-700 active:scale-95 rounded-lg shadow-lg text-stone-200 transition"
+			aria-label="Zoom in"
+		>
+			<Plus size={18} />
+		</button>
+		<button
+			onclick={() => { if (svgEl && mapInitialised) zoomOut(svgEl); }}
+			class="w-11 h-11 flex items-center justify-center bg-stone-800/90 hover:bg-stone-700 active:scale-95 rounded-lg shadow-lg text-stone-200 transition"
+			aria-label="Zoom out"
+		>
+			<Minus size={18} />
+		</button>
+		<button
+			onclick={() => { if (svgEl && mapInitialised) resetZoom(svgEl); }}
+			class="w-11 h-11 flex items-center justify-center bg-stone-800/90 hover:bg-stone-700 active:scale-95 rounded-lg shadow-lg text-stone-200 transition"
+			aria-label="Reset zoom"
+		>
+			<Maximize2 size={16} />
+		</button>
+	</div>
 
 	<Tooltip
 		x={tooltipX}

@@ -44,11 +44,15 @@
 	{/if}
 
 	<!-- Tab bar -->
-	<div class="flex border-b border-stone-700 shrink-0">
+	<div class="flex border-b border-stone-700 shrink-0" role="tablist" aria-label="Sidebar sections">
 		{#each tabs as tab}
 			{@const Icon = tab.icon}
 			<button
 				onclick={() => { activeTab = tab.id; }}
+				role="tab"
+				id={`tab-${tab.id}`}
+				aria-selected={activeTab === tab.id}
+				aria-controls="sidebar-panel"
 				class={`flex-1 flex flex-col items-center gap-0.5 py-2 text-xs transition-colors border-b-2 ${
 					activeTab === tab.id
 						? 'border-amber-500 text-amber-400'
@@ -63,7 +67,12 @@
 	</div>
 
 	<!-- Tab content -->
-	<div class="flex-1 overflow-y-auto">
+	<div
+		class="flex-1 overflow-y-auto"
+		role="tabpanel"
+		id="sidebar-panel"
+		aria-labelledby={`tab-${activeTab}`}
+	>
 		{#if activeTab === 'map'}
 			<Legend />
 		{:else if activeTab === 'kingdoms'}

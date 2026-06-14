@@ -11,6 +11,10 @@ const EVENT_WINDOW = 30;
 const ARTIFACT_WINDOW = 150;
 const YEAR_ANIM_DURATION_MS = 300;
 
+function prefersReducedMotion(): boolean {
+	return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 function createMapStore() {
 	let year = $state(600);
 	let displayYear = $state(600);
@@ -29,6 +33,10 @@ function createMapStore() {
 
 	function animateDisplayYear(from: number, to: number) {
 		if (yearAnimFrame !== null) cancelAnimationFrame(yearAnimFrame);
+		if (prefersReducedMotion()) {
+			displayYear = to;
+			return;
+		}
 		const start = performance.now();
 		const delta = to - from;
 
@@ -114,6 +122,14 @@ function createMapStore() {
 		selectedArtifact = null;
 	}
 
+	function destroy() {
+		stopPlayback();
+		if (yearAnimFrame !== null) {
+			cancelAnimationFrame(yearAnimFrame);
+			yearAnimFrame = null;
+		}
+	}
+
 	return {
 		get year() { return year; },
 		get displayYear() { return displayYear; },
@@ -137,7 +153,8 @@ function createMapStore() {
 		jumpToEvent,
 		selectArtifact,
 		clearKingdom,
-		clearArtifact
+		clearArtifact,
+		destroy
 	};
 }
 

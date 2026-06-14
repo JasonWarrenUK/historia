@@ -15,8 +15,9 @@
 		<div class="relative shrink-0">
 			<button
 				onclick={() => mapStore.togglePlayback()}
-				class="p-2 bg-amber-600 hover:bg-amber-500 rounded-full transition-colors"
+				class="p-3 bg-amber-600 hover:bg-amber-500 active:scale-95 rounded-full transition"
 				aria-label={mapStore.playing ? 'Pause' : 'Play'}
+				aria-pressed={mapStore.playing}
 			>
 				{#if mapStore.playing}
 					<Pause size={18} />
@@ -27,7 +28,8 @@
 			{#if mapStore.showEvents && mapStore.relevantEvents.length > 0}
 				<button
 					onclick={() => mapStore.jumpToEvent(mapStore.relevantEvents[0].year)}
-					class="absolute -top-1.5 -right-1.5 bg-amber-500 text-stone-900 text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none hover:bg-amber-400 transition-colors"
+					class="absolute -top-2 -right-2 bg-amber-500 text-stone-900 text-[10px] font-bold rounded-full w-6 h-6 flex items-center justify-center leading-none hover:bg-amber-400 active:scale-95 transition"
+					aria-label="Jump to {mapStore.relevantEvents.length} event{mapStore.relevantEvents.length === 1 ? '' : 's'} nearby"
 					title="{mapStore.relevantEvents.length} event{mapStore.relevantEvents.length === 1 ? '' : 's'} nearby"
 				>
 					{mapStore.relevantEvents.length}
@@ -55,6 +57,7 @@
 				oninput={(e) => mapStore.setYear(Number((e.target as HTMLInputElement).value))}
 				class="relative w-full accent-amber-500 z-10"
 				aria-label="Year slider"
+				aria-valuetext="Year {mapStore.year} CE"
 			/>
 		</div>
 
@@ -66,7 +69,8 @@
 		{#each mapStore.periodYears as y}
 			<button
 				onclick={() => mapStore.setYear(y, { animate: true })}
-				class={`px-2 py-0.5 text-xs rounded transition-colors ${
+				aria-pressed={mapStore.nearestPeriodYear === y}
+				class={`px-2.5 py-1.5 min-w-9 text-xs rounded transition active:scale-95 ${
 					mapStore.nearestPeriodYear === y
 						? 'bg-amber-600 text-white'
 						: 'bg-stone-700 hover:bg-stone-600 text-stone-300'
