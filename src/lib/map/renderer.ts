@@ -17,9 +17,17 @@ export interface RenderOptions {
 
 // Module-level state for the persistent map instance
 let zoomTransform = d3.zoomIdentity;
+let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
 let currentProjection: d3.GeoProjection | null = null;
 let currentWidth = 0;
 let currentHeight = 0;
+
+// Respect the user's reduced-motion preference for D3 transitions
+function dur(ms: number): number {
+	return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+		? 0
+		: ms;
+}
 
 export function buildProjection(width: number, height: number): d3.GeoProjection {
 	return d3
@@ -50,7 +58,8 @@ export function initMap(
 	svgElement: SVGSVGElement,
 	width: number,
 	height: number,
-	onZoom: () => void
+	onZoom: () => void,
+	onBackgroundClick: () => void
 ): void {
 	currentWidth = width;
 	currentHeight = height;
@@ -90,13 +99,34 @@ export function initMap(
 			zoomRoot.attr('transform', event.transform.toString());
 			onZoom();
 		});
+	zoomBehavior = zoom;
 
 	svg.call(zoom);
 
+	// Click on empty ocean/land (not a kingdom or artifact) clears the selection.
+	// d3-zoom suppresses the click that follows a pan gesture, so dragging the
+	// map won't deselect — only genuine clicks reach this handler.
+	svg.on('click', () => onBackgroundClick());
+
 	// Double-click to reset zoom
 	svg.on('dblclick.zoom', () => {
-		svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+		svg.transition().duration(dur(400)).call(zoom.transform, d3.zoomIdentity);
 	});
+}
+
+export function zoomIn(svgElement: SVGSVGElement): void {
+	if (!zoomBehavior) return;
+	d3.select(svgElement).transition().duration(dur(250)).call(zoomBehavior.scaleBy, 1.5);
+}
+
+export function zoomOut(svgElement: SVGSVGElement): void {
+	if (!zoomBehavior) return;
+	d3.select(svgElement).transition().duration(dur(250)).call(zoomBehavior.scaleBy, 1 / 1.5);
+}
+
+export function resetZoom(svgElement: SVGSVGElement): void {
+	if (!zoomBehavior) return;
+	d3.select(svgElement).transition().duration(dur(400)).call(zoomBehavior.transform, d3.zoomIdentity);
 }
 
 function drawLand(
@@ -128,8 +158,10 @@ export function resizeMap(svgElement: SVGSVGElement, width: number, height: numb
 	svg.attr('width', width).attr('height', height);
 	svg.select('#layer-ocean').attr('width', width).attr('height', height);
 
-	// Reset zoom root transform
+	// Reset zoom root transform and sync d3-zoom's internal element state so the
+	// next gesture starts from identity rather than a stale transform.
 	svg.select('#zoom-root').attr('transform', null);
+	if (zoomBehavior) svg.call(zoomBehavior.transform, d3.zoomIdentity);
 
 	drawLand(svg, currentProjection);
 }
@@ -185,27 +217,32 @@ export function updateKingdoms(
 		.attr('stroke-opacity', 0.7)
 		.attr('fill-opacity', 0)
 		.style('cursor', 'pointer')
-		.on('click', (_event, d) => onKingdomClick(d.kingdom))
-		.on('mouseenter', function (_event, d) {
+		.on('click', (event, d) => {
+			event.stopPropagation();
+			onKingdomClick(d.kingdom);
+		})
+		.on('pointerenter', function (event, d) {
 			d3.select(this).attr('stroke-width', 2.5).attr('stroke-opacity', 1);
-			const [px, py] = d3.pointer(_event, svgElement);
+			if (event.pointerType === 'touch') return;
+			const [px, py] = d3.pointer(event, svgElement);
 			onKingdomHover(d.kingdom, px, py);
 		})
-		.on('mousemove', function (_event) {
-			const [px, py] = d3.pointer(_event, svgElement);
+		.on('pointermove', function (event) {
+			if (event.pointerType === 'touch') return;
+			const [px, py] = d3.pointer(event, svgElement);
 			// Update tooltip position — we just re-emit hover with same kingdom
 			const datum = d3.select<SVGEllipseElement, KingdomDatum>(this).datum();
 			onKingdomHover(datum.kingdom, px, py);
 		})
-		.on('mouseleave', function () {
+		.on('pointerleave', function () {
 			d3.select(this).attr('stroke-width', 1.5).attr('stroke-opacity', 0.7);
 			onKingdomHover(null, 0, 0);
 		})
-		.transition().duration(400).ease(d3.easeCubicOut)
+		.transition().duration(dur(400)).ease(d3.easeCubicOut)
 		.attr('fill-opacity', 1);
 
 	// Update
-	ellipses.transition().duration(400).ease(d3.easeCubicOut)
+	ellipses.transition().duration(dur(400)).ease(d3.easeCubicOut)
 		.attr('cx', (d) => d.x)
 		.attr('cy', (d) => d.y)
 		.attr('rx', (d) => d.rx)
@@ -213,7 +250,7 @@ export function updateKingdoms(
 
 	// Exit
 	ellipses.exit()
-		.transition().duration(200)
+		.transition().duration(dur(200))
 		.attr('fill-opacity', 0)
 		.attr('stroke-opacity', 0)
 		.remove();
@@ -235,17 +272,17 @@ export function updateKingdoms(
 		.attr('cy', (d) => d.y)
 		.attr('rx', (d) => d.rx + 4)
 		.attr('ry', (d) => d.ry + 4)
-		.transition().duration(200)
+		.transition().duration(dur(200))
 		.attr('stroke-opacity', 0.8);
 
-	rings.transition().duration(400)
+	rings.transition().duration(dur(400))
 		.attr('cx', (d) => d.x)
 		.attr('cy', (d) => d.y)
 		.attr('rx', (d) => d.rx + 4)
 		.attr('ry', (d) => d.ry + 4);
 
 	rings.exit()
-		.transition().duration(150)
+		.transition().duration(dur(150))
 		.attr('stroke-opacity', 0)
 		.remove();
 
@@ -296,11 +333,11 @@ export function updateKingdoms(
 			.attr('fill', d.kingdom.color);
 	});
 
-	allLabels.transition().duration(400)
+	allLabels.transition().duration(dur(400))
 		.attr('opacity', 1);
 
 	labels.exit()
-		.transition().duration(200)
+		.transition().duration(dur(200))
 		.attr('opacity', 0)
 		.remove();
 }
@@ -346,25 +383,29 @@ export function updateArtifacts(
 		.attr('y', (d) => d.y)
 		.attr('opacity', 0)
 		.text((d) => d.artifact.image)
-		.on('click', (_event, d) => onArtifactClick(d.artifact))
-		.on('mouseenter', function (_event, d) {
+		.on('click', (event, d) => {
+			event.stopPropagation();
+			onArtifactClick(d.artifact);
+		})
+		.on('pointerenter', function (event, d) {
 			d3.select(this).attr('font-size', '22px');
-			const [px, py] = d3.pointer(_event, svgElement);
+			if (event.pointerType === 'touch') return;
+			const [px, py] = d3.pointer(event, svgElement);
 			onArtifactHover(d.artifact, px, py);
 		})
-		.on('mouseleave', function () {
+		.on('pointerleave', function () {
 			d3.select(this).attr('font-size', '18px');
 			onArtifactHover(null, 0, 0);
 		})
-		.transition().duration(300)
+		.transition().duration(dur(300))
 		.attr('opacity', 1);
 
-	markers.transition().duration(300)
+	markers.transition().duration(dur(300))
 		.attr('x', (d) => d.x)
 		.attr('y', (d) => d.y);
 
 	markers.exit()
-		.transition().duration(200)
+		.transition().duration(dur(200))
 		.attr('opacity', 0)
 		.remove();
 }
