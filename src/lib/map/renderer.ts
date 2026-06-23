@@ -1,5 +1,6 @@
 import * as d3 from 'd3';
 import { britishIslesGeoJSON } from '$lib/data/geo.js';
+import { computeTerritories, type Territory } from '$lib/map/territories.js';
 import type { Kingdom, Artifact } from '$lib/data/types.js';
 
 export interface RenderOptions {
@@ -182,35 +183,33 @@ export function updateKingdoms(
 	const scale = zoomTransform.k;
 	const showLabelsAll = scale >= 2;
 
-	// Project kingdom data
+	// Build territory polygons (tessellated + clipped to the coastline) and a
+	// geoPath that renders them in the same projection as the land layer.
+	const path = d3.geoPath().projection(currentProjection);
+	const territories = computeTerritories(kingdoms, currentProjection);
+
 	interface KingdomDatum {
 		kingdom: Kingdom;
-		x: number;
-		y: number;
-		rx: number;
-		ry: number;
+		feature: Territory['feature'];
+		cx: number;
+		cy: number;
 	}
 
-	const projected: KingdomDatum[] = kingdoms.flatMap((k) => {
-		const coords = currentProjection!([k.center[0], k.center[1]]);
-		if (!coords) return [];
-		const stretch = k.stretch ?? 1;
-		return [{ kingdom: k, x: coords[0], y: coords[1], rx: k.radius * stretch, ry: k.radius }];
+	const data: KingdomDatum[] = territories.map((t) => {
+		const [cx, cy] = path.centroid(t.feature);
+		return { kingdom: t.kingdom, feature: t.feature, cx, cy };
 	});
 
-	// --- Territory ellipses ---
+	// --- Territory polygons ---
 	const kingdomLayer = svg.select<SVGGElement>('#layer-kingdoms');
-	const ellipses = kingdomLayer.selectAll<SVGEllipseElement, KingdomDatum>('ellipse.territory')
-		.data(projected, (d) => d.kingdom.id);
+	const paths = kingdomLayer.selectAll<SVGPathElement, KingdomDatum>('path.territory')
+		.data(data, (d) => d.kingdom.id);
 
 	// Enter
-	ellipses.enter()
-		.append('ellipse')
+	paths.enter()
+		.append('path')
 		.attr('class', 'territory')
-		.attr('cx', (d) => d.x)
-		.attr('cy', (d) => d.y)
-		.attr('rx', (d) => d.rx)
-		.attr('ry', (d) => d.ry)
+		.attr('d', (d) => path(d.feature))
 		.attr('fill', (d) => `url(#grad-${d.kingdom.id})`)
 		.attr('stroke', (d) => d.kingdom.color)
 		.attr('stroke-width', 1.5)
@@ -231,7 +230,7 @@ export function updateKingdoms(
 			if (event.pointerType === 'touch') return;
 			const [px, py] = d3.pointer(event, svgElement);
 			// Update tooltip position — we just re-emit hover with same kingdom
-			const datum = d3.select<SVGEllipseElement, KingdomDatum>(this).datum();
+			const datum = d3.select<SVGPathElement, KingdomDatum>(this).datum();
 			onKingdomHover(datum.kingdom, px, py);
 		})
 		.on('pointerleave', function () {
@@ -241,26 +240,26 @@ export function updateKingdoms(
 		.transition().duration(dur(400)).ease(d3.easeCubicOut)
 		.attr('fill-opacity', 1);
 
-	// Update
-	ellipses.transition().duration(dur(400)).ease(d3.easeCubicOut)
-		.attr('cx', (d) => d.x)
-		.attr('cy', (d) => d.y)
-		.attr('rx', (d) => d.rx)
-		.attr('ry', (d) => d.ry);
+	// Update — territory shape differs entirely between periods, so set `d`
+	// directly rather than tweening the path string.
+	paths
+		.attr('d', (d) => path(d.feature))
+		.attr('fill', (d) => `url(#grad-${d.kingdom.id})`)
+		.attr('stroke', (d) => d.kingdom.color);
 
 	// Exit
-	ellipses.exit()
+	paths.exit()
 		.transition().duration(dur(200))
 		.attr('fill-opacity', 0)
 		.attr('stroke-opacity', 0)
 		.remove();
 
-	// Selection highlight ring
-	const rings = kingdomLayer.selectAll<SVGEllipseElement, KingdomDatum>('ellipse.selection-ring')
-		.data(projected.filter((d) => d.kingdom.id === selectedKingdomId), (d) => d.kingdom.id);
+	// Selection highlight — the same territory outline, dashed in white.
+	const rings = kingdomLayer.selectAll<SVGPathElement, KingdomDatum>('path.selection-ring')
+		.data(data.filter((d) => d.kingdom.id === selectedKingdomId), (d) => d.kingdom.id);
 
 	rings.enter()
-		.append('ellipse')
+		.append('path')
 		.attr('class', 'selection-ring')
 		.attr('pointer-events', 'none')
 		.attr('fill', 'none')
@@ -268,18 +267,11 @@ export function updateKingdoms(
 		.attr('stroke-width', 2)
 		.attr('stroke-dasharray', '4 3')
 		.attr('stroke-opacity', 0)
-		.attr('cx', (d) => d.x)
-		.attr('cy', (d) => d.y)
-		.attr('rx', (d) => d.rx + 4)
-		.attr('ry', (d) => d.ry + 4)
+		.attr('d', (d) => path(d.feature))
 		.transition().duration(dur(200))
-		.attr('stroke-opacity', 0.8);
+		.attr('stroke-opacity', 0.9);
 
-	rings.transition().duration(dur(400))
-		.attr('cx', (d) => d.x)
-		.attr('cy', (d) => d.y)
-		.attr('rx', (d) => d.rx + 4)
-		.attr('ry', (d) => d.ry + 4);
+	rings.attr('d', (d) => path(d.feature));
 
 	rings.exit()
 		.transition().duration(dur(150))
@@ -289,7 +281,12 @@ export function updateKingdoms(
 	// --- Labels ---
 	const labelLayer = svg.select<SVGGElement>('#layer-labels');
 	const labels = labelLayer.selectAll<SVGGElement, KingdomDatum>('g.label')
-		.data(projected.filter((d) => showLabelsAll || d.kingdom.radius >= 10), (d) => d.kingdom.id);
+		.data(
+			data.filter(
+				(d) => (showLabelsAll || d.kingdom.radius >= 10) && isFinite(d.cx) && isFinite(d.cy)
+			),
+			(d) => d.kingdom.id
+		);
 
 	const labelsEnter = labels.enter()
 		.append('g')
@@ -302,13 +299,13 @@ export function updateKingdoms(
 
 	const allLabels = labels.merge(labelsEnter);
 
-	// Measure and position text
+	// Measure and position text at the territory centroid
 	allLabels.each(function (d) {
 		const g = d3.select(this);
-		const labelY = d.y + d.ry + 6;
+		const labelY = d.cy - 7;
 
 		const textEl = g.select<SVGTextElement>('text.label-text')
-			.attr('x', d.x)
+			.attr('x', d.cx)
 			.attr('y', labelY + 9)
 			.attr('text-anchor', 'middle')
 			.attr('fill', 'white')
@@ -326,7 +323,7 @@ export function updateKingdoms(
 		}
 
 		g.select('rect.label-bg')
-			.attr('x', d.x - textWidth / 2 - 4)
+			.attr('x', d.cx - textWidth / 2 - 4)
 			.attr('y', labelY)
 			.attr('width', textWidth + 8)
 			.attr('height', 14)
