@@ -30,7 +30,7 @@
 	];
 </script>
 
-<aside class="w-full lg:w-80 bg-stone-800 border-l border-stone-700 flex flex-col lg:max-h-screen">
+<aside class="w-full lg:w-80 border-l flex flex-col lg:max-h-screen" style="background-color: #ede0b0; border-color: #c8a96e;">
 	<!-- Selection detail — pinned at top when something is selected -->
 	{#if hasSelection}
 		<div class="shrink-0">
@@ -38,22 +38,21 @@
 			<ArtifactPanel />
 		</div>
 	{:else}
-		<div class="p-3 border-b border-stone-700 shrink-0">
-			<p class="text-xs text-stone-500 italic">Click a kingdom or artefact on the map to see details.</p>
+		<div class="p-3 border-b shrink-0" style="border-color: #c8a96e;">
+			<p class="text-xs italic" style="color: #b08060;">Click a kingdom or artefact on the map to see details.</p>
 		</div>
 	{/if}
 
 	<!-- Tab bar -->
-	<div class="flex border-b border-stone-700 shrink-0">
+	<div class="flex border-b shrink-0" style="border-color: #c8a96e;">
 		{#each tabs as tab}
 			{@const Icon = tab.icon}
 			<button
 				onclick={() => { activeTab = tab.id; }}
-				class={`flex-1 flex flex-col items-center gap-0.5 py-2 text-xs transition-colors border-b-2 ${
-					activeTab === tab.id
-						? 'border-amber-500 text-amber-400'
-						: 'border-transparent text-stone-500 hover:text-stone-300'
-				}`}
+				class="flex-1 flex flex-col items-center gap-0.5 py-2 text-xs transition-colors border-b-2"
+				style={activeTab === tab.id
+					? 'border-color: #8b6914; color: #7a5a10;'
+					: 'border-color: transparent; color: #b08060;'}
 				aria-label={tab.label}
 			>
 				<Icon size={14} />

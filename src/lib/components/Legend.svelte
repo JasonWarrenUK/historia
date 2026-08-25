@@ -4,8 +4,8 @@
 	import { mapStore } from '$lib/stores/map.svelte.js';
 </script>
 
-<div class="p-3 border-b border-stone-700">
-	<h3 class="text-xs font-semibold text-stone-400 mb-2 flex items-center gap-2">
+<div class="p-3 border-b" style="border-color: #c8a96e;">
+	<h3 class="text-xs font-semibold mb-2 flex items-center gap-2" style="color: #9a7550;">
 		<Layers size={14} /> Kingdom Types
 	</h3>
 
@@ -13,22 +13,22 @@
 		{#each Object.entries(typeColors) as [type, { bg, label }]}
 			<div class="flex items-center gap-2">
 				<div class="w-3 h-3 rounded-full shrink-0" style="background-color: {bg}"></div>
-				<span class="text-xs text-stone-300">{label}</span>
+				<span class="text-xs" style="color: #6b4c2a;">{label}</span>
 			</div>
 		{/each}
 	</div>
 
 	<div class="flex gap-4">
-		<label class="flex items-center gap-1.5 text-xs text-stone-400 cursor-pointer">
+		<label class="flex items-center gap-1.5 text-xs cursor-pointer" style="color: #9a7550;">
 			<input
 				type="checkbox"
 				checked={mapStore.showArtifacts}
 				onchange={(e) => { mapStore.showArtifacts = (e.target as HTMLInputElement).checked; }}
 				class="accent-amber-500"
 			/>
-			Artifacts
+			Artefacts
 		</label>
-		<label class="flex items-center gap-1.5 text-xs text-stone-400 cursor-pointer">
+		<label class="flex items-center gap-1.5 text-xs cursor-pointer" style="color: #9a7550;">
 			<input
 				type="checkbox"
 				checked={mapStore.showEvents}

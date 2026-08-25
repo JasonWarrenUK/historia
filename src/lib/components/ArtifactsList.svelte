@@ -5,7 +5,7 @@
 </script>
 
 <div class="p-3">
-	<h3 class="text-xs font-semibold text-stone-400 mb-2 flex items-center gap-2">
+	<h3 class="text-xs font-semibold mb-2 flex items-center gap-2" style="color: #9a7550;">
 		<Info size={14} /> Artefacts & Folklore
 	</h3>
 
@@ -14,18 +14,17 @@
 			{@const isVisible = Math.abs(artifact.year - mapStore.year) <= 150}
 			<button
 				onclick={() => mapStore.selectArtifact(artifact)}
-				class={`w-full text-left p-1.5 rounded text-xs transition-colors flex items-center gap-2 ${
-					mapStore.selectedArtifact?.id === artifact.id
-						? 'bg-stone-600'
-						: 'hover:bg-stone-700'
-				} ${isVisible ? '' : 'opacity-50'}`}
+				class="w-full text-left p-1.5 rounded text-xs transition-colors flex items-center gap-2 {isVisible ? '' : 'opacity-50'}"
+				style={mapStore.selectedArtifact?.id === artifact.id
+					? 'background-color: #cfc090;'
+					: 'background-color: transparent;'}
 			>
 				<span class="text-base">{artifact.image}</span>
 				<div class="flex-1 min-w-0">
-					<div class="text-stone-200 truncate">{artifact.name}</div>
-					<div class="text-stone-500">c. {artifact.year}</div>
+					<div class="truncate" style="color: #2c1810;">{artifact.name}</div>
+					<div style="color: #b08060;">c. {artifact.year}</div>
 				</div>
-				<span class="text-stone-600 capitalize text-xs">{artifact.type}</span>
+				<span class="capitalize text-xs" style="color: #c8a96e;">{artifact.type}</span>
 			</button>
 		{/each}
 	</div>

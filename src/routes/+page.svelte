@@ -10,27 +10,27 @@
 	<title>Historia — Britain 300–1066 CE</title>
 </svelte:head>
 
-<div class="min-h-screen bg-stone-900 text-stone-100 flex flex-col lg:flex-row">
+<div class="min-h-screen flex flex-col lg:flex-row" style="background-color: #f4e8c1; color: #2c1810;">
 	<!-- Map panel -->
 	<div class="flex-1 flex flex-col min-h-0 lg:min-h-screen">
 		<!-- Header -->
-		<header class="bg-stone-800 border-b border-stone-700 p-3 shrink-0">
+		<header class="border-b p-3 shrink-0" style="background-color: #ede0b0; border-color: #c8a96e;">
 			<div class="flex items-center justify-between">
 				<div>
-					<h1 class="text-xl font-serif font-bold text-amber-400">Historia</h1>
-					<p class="text-stone-400 text-xs">Britain 300–1066 CE · From Roman Province to Norman Conquest</p>
+					<h1 class="text-xl font-serif font-bold" style="color: #7a5a10;">Historia</h1>
+					<p class="text-xs" style="color: #9a7550;">Britain 300–1066 CE · From Roman Province to Norman Conquest</p>
 				</div>
 				<div class="text-right">
-					<div class="text-2xl font-serif font-bold text-amber-300">{mapStore.displayYear} CE</div>
-					<div class="text-xs text-stone-400">{mapStore.currentPeriod.name}</div>
+					<div class="text-2xl font-serif font-bold" style="color: #8b6914;">{mapStore.displayYear} CE</div>
+					<div class="text-xs" style="color: #9a7550;">{mapStore.currentPeriod.name}</div>
 				</div>
 			</div>
 		</header>
 
 		<!-- Period description — fades when period changes -->
-		<div class="bg-stone-800/50 border-b border-stone-700 px-3 py-2 shrink-0 overflow-hidden">
+		<div class="border-b px-3 py-2 shrink-0 overflow-hidden" style="background-color: rgba(237, 224, 176, 0.5); border-color: #c8a96e;">
 			{#key mapStore.nearestPeriodYear}
-				<p class="text-xs text-stone-300 leading-relaxed" transition:fade={{ duration: 250 }}>
+				<p class="text-xs leading-relaxed" style="color: #6b4c2a;" transition:fade={{ duration: 250 }}>
 					{mapStore.currentPeriod.description}
 				</p>
 			{/key}
