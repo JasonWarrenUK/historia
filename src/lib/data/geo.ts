@@ -1,312 +1,288 @@
-export const britishIslesGeoJSON = {
+import { merge, feature } from 'topojson-client';
+import type { Topology, GeometryCollection, Polygon, MultiPolygon } from 'topojson-specification';
+
+export type RegionProperties = { id: string; name: string };
+
+export type BritishIslesTopology = Topology<{
+	regions: GeometryCollection<RegionProperties>;
+	coastline: GeometryCollection<{ name: string }>;
+}>;
+
+let cachedTopology: BritishIslesTopology | null = null;
+
+export async function loadTopology(): Promise<BritishIslesTopology> {
+	if (cachedTopology) return cachedTopology;
+	const response = await fetch('/data/british-isles.topo.json');
+	if (!response.ok) throw new Error(`Failed to load topology: ${response.status}`);
+	cachedTopology = await response.json() as BritishIslesTopology;
+	return cachedTopology;
+}
+
+export function getCoastlineGeoJSON(topology: BritishIslesTopology): GeoJSON.FeatureCollection {
+	return feature(topology, topology.objects.coastline) as GeoJSON.FeatureCollection;
+}
+
+export function mergeRegions(
+	topology: BritishIslesTopology,
+	regionIds: string[]
+): GeoJSON.Geometry | null {
+	const geoms = topology.objects.regions.geometries.filter(
+		(g): g is Polygon<RegionProperties> | MultiPolygon<RegionProperties> =>
+			g.properties != null &&
+			regionIds.includes((g.properties as RegionProperties).id) &&
+			(g.type === 'Polygon' || g.type === 'MultiPolygon')
+	);
+	if (geoms.length === 0) return null;
+	return merge(topology, geoms) as GeoJSON.Geometry;
+}
+
+export function kingdomsToGeoJSON(
+	topology: BritishIslesTopology,
+	kingdoms: import('./types.js').Kingdom[]
+): GeoJSON.FeatureCollection {
+	const features: GeoJSON.Feature[] = [];
+	for (const k of kingdoms) {
+		const geometry = mergeRegions(topology, k.regions);
+		if (!geometry) continue;
+		features.push({
+			type: 'Feature',
+			id: k.id,
+			properties: {
+				id: k.id,
+				name: k.name,
+				color: k.color,
+				territory: k.territory,
+				type: k.type
+			},
+			geometry
+		});
+	}
+	return { type: 'FeatureCollection', features };
+}
+
+export function getKingdomBounds(
+	topology: BritishIslesTopology,
+	regionIds: string[]
+): [[number, number], [number, number]] | null {
+	const geometry = mergeRegions(topology, regionIds);
+	if (!geometry) return null;
+	const coords = flattenCoordinates(geometry);
+	if (coords.length === 0) return null;
+	const lons = coords.map((c) => c[0]);
+	const lats = coords.map((c) => c[1]);
+	return [
+		[Math.min(...lons), Math.min(...lats)],
+		[Math.max(...lons), Math.max(...lats)]
+	];
+}
+
+function flattenCoordinates(geometry: GeoJSON.Geometry): [number, number][] {
+	const coords: [number, number][] = [];
+	function collect(g: GeoJSON.Geometry) {
+		if (g.type === 'Polygon') {
+			for (const ring of g.coordinates) {
+				for (const c of ring) coords.push(c as [number, number]);
+			}
+		} else if (g.type === 'MultiPolygon') {
+			for (const poly of g.coordinates) {
+				for (const ring of poly) {
+					for (const c of ring) coords.push(c as [number, number]);
+				}
+			}
+		} else if (g.type === 'GeometryCollection') {
+			for (const sub of g.geometries) collect(sub);
+		}
+	}
+	collect(geometry);
+	return coords;
+}
+
+// Rivers remain as inline GeoJSON — no dependency on the topology file.
+export const britishIslesRiversGeoJSON = {
 	type: 'FeatureCollection',
 	features: [
 		{
 			type: 'Feature',
-			properties: { name: 'Great Britain' },
+			properties: { name: 'Thames' },
 			geometry: {
-				type: 'Polygon',
+				type: 'LineString',
 				coordinates: [
-					[
-						[-5.71, 50.07],
-						[-5.54, 50.12],
-						[-5.04, 50.04],
-						[-4.79, 50.23],
-						[-4.54, 50.32],
-						[-4.19, 50.36],
-						[-3.86, 50.23],
-						[-3.53, 50.45],
-						[-3.17, 50.69],
-						[-2.98, 50.72],
-						[-2.56, 50.63],
-						[-1.95, 50.72],
-						[-1.58, 50.66],
-						[-1.31, 50.79],
-						[-1.11, 50.84],
-						[-0.75, 50.76],
-						[-0.25, 50.83],
-						[0.23, 50.93],
-						[0.67, 50.88],
-						[0.96, 51.36],
-						[1.35, 51.18],
-						[1.43, 51.33],
-						[1.19, 51.38],
-						[0.95, 51.52],
-						[0.7, 51.52],
-						[0.5, 51.73],
-						[0.87, 51.88],
-						[1.06, 52.01],
-						[1.62, 52.38],
-						[1.73, 52.53],
-						[1.68, 52.74],
-						[1.55, 52.85],
-						[0.34, 52.91],
-						[0.16, 52.88],
-						[0.09, 53.01],
-						[0.07, 53.26],
-						[0.01, 53.52],
-						[-0.19, 53.62],
-						[-0.34, 53.73],
-						[-0.43, 54.01],
-						[-0.08, 54.13],
-						[-0.17, 54.51],
-						[-0.71, 54.53],
-						[-1.16, 54.62],
-						[-1.22, 54.76],
-						[-1.59, 55.07],
-						[-1.62, 55.3],
-						[-1.69, 55.6],
-						[-1.81, 55.65],
-						[-2.03, 55.81],
-						[-2.21, 55.9],
-						[-2.35, 55.97],
-						[-2.5, 56.01],
-						[-2.67, 56.05],
-						[-2.84, 56.05],
-						[-2.86, 56.22],
-						[-2.64, 56.33],
-						[-2.52, 56.43],
-						[-2.69, 56.46],
-						[-2.9, 56.45],
-						[-3.04, 56.45],
-						[-3.26, 56.36],
-						[-3.55, 56.05],
-						[-3.78, 56.11],
-						[-3.83, 56.08],
-						[-4.09, 56.02],
-						[-4.33, 55.9],
-						[-4.59, 55.93],
-						[-4.75, 55.85],
-						[-4.89, 55.97],
-						[-5.04, 56.02],
-						[-5.19, 55.9],
-						[-5.29, 55.96],
-						[-5.33, 56.14],
-						[-5.46, 56.28],
-						[-5.63, 56.25],
-						[-5.66, 56.41],
-						[-5.95, 56.49],
-						[-6.14, 56.51],
-						[-5.88, 56.66],
-						[-5.77, 56.77],
-						[-5.67, 56.88],
-						[-5.65, 57.09],
-						[-5.83, 57.25],
-						[-5.81, 57.36],
-						[-5.62, 57.44],
-						[-5.56, 57.54],
-						[-5.72, 57.57],
-						[-5.79, 57.64],
-						[-5.66, 57.69],
-						[-5.54, 57.88],
-						[-5.35, 58.01],
-						[-5.01, 58.02],
-						[-5.01, 58.24],
-						[-4.71, 58.51],
-						[-4.35, 58.55],
-						[-3.96, 58.56],
-						[-3.39, 58.59],
-						[-3.1, 58.45],
-						[-3.05, 58.63],
-						[-2.86, 58.68],
-						[-3.39, 58.87],
-						[-3.23, 59.05],
-						[-3.09, 58.97],
-						[-2.93, 58.78],
-						[-2.65, 58.75],
-						[-2.5, 58.73],
-						[-2.3, 58.74],
-						[-2.07, 58.6],
-						[-1.87, 58.56],
-						[-1.79, 58.46],
-						[-1.61, 58.37],
-						[-1.62, 58.22],
-						[-1.78, 58.07],
-						[-2.07, 57.94],
-						[-2.09, 57.7],
-						[-1.87, 57.47],
-						[-2.08, 57.27],
-						[-2.26, 57.09],
-						[-2.04, 56.9],
-						[-1.95, 56.79],
-						[-2.23, 56.67],
-						[-2.42, 56.54],
-						[-2.57, 56.5],
-						[-2.66, 56.37],
-						[-2.92, 56.21],
-						[-3.23, 56.08],
-						[-3.51, 56.0],
-						[-3.78, 55.94],
-						[-4.03, 55.96],
-						[-4.32, 55.9],
-						[-4.62, 55.87],
-						[-4.85, 55.78],
-						[-4.87, 55.7],
-						[-4.85, 55.55],
-						[-4.55, 55.58],
-						[-4.47, 55.48],
-						[-4.69, 55.37],
-						[-4.87, 55.15],
-						[-4.97, 55.04],
-						[-5.18, 54.98],
-						[-5.12, 54.84],
-						[-4.97, 54.76],
-						[-5.15, 54.63],
-						[-5.04, 54.47],
-						[-4.72, 54.22],
-						[-4.39, 54.19],
-						[-4.05, 54.41],
-						[-3.64, 54.51],
-						[-3.44, 54.48],
-						[-3.27, 54.11],
-						[-3.17, 54.08],
-						[-2.93, 54.15],
-						[-2.81, 54.22],
-						[-2.82, 54.11],
-						[-2.96, 53.95],
-						[-3.05, 53.75],
-						[-2.9, 53.73],
-						[-2.93, 53.54],
-						[-3.05, 53.44],
-						[-3.1, 53.34],
-						[-3.0, 53.26],
-						[-2.93, 53.1],
-						[-2.73, 53.03],
-						[-2.83, 52.94],
-						[-3.01, 52.98],
-						[-3.1, 52.9],
-						[-3.11, 52.79],
-						[-3.02, 52.57],
-						[-3.09, 52.48],
-						[-2.99, 52.33],
-						[-3.11, 52.25],
-						[-3.07, 52.15],
-						[-3.12, 52.07],
-						[-2.98, 51.91],
-						[-3.27, 51.69],
-						[-3.15, 51.45],
-						[-2.74, 51.58],
-						[-2.66, 51.55],
-						[-2.64, 51.44],
-						[-2.42, 51.19],
-						[-3.02, 51.21],
-						[-3.28, 51.18],
-						[-3.5, 51.21],
-						[-3.72, 51.23],
-						[-4.0, 51.2],
-						[-4.14, 51.19],
-						[-4.29, 51.25],
-						[-4.53, 51.18],
-						[-4.79, 51.23],
-						[-4.96, 51.22],
-						[-5.11, 51.23],
-						[-5.18, 51.1],
-						[-5.08, 50.94],
-						[-5.0, 50.79],
-						[-5.04, 50.55],
-						[-5.14, 50.41],
-						[-5.24, 50.29],
-						[-5.45, 50.13],
-						[-5.51, 50.1],
-						[-5.71, 50.07]
-					]
+					[-1.80, 51.70],
+					[-1.60, 51.68],
+					[-1.40, 51.66],
+					[-1.24, 51.66],
+					[-1.10, 51.63],
+					[-0.95, 51.62],
+					[-0.80, 51.60],
+					[-0.60, 51.56],
+					[-0.40, 51.54],
+					[-0.20, 51.52],
+					[-0.05, 51.51],
+					[0.10, 51.50],
+					[0.30, 51.50],
+					[0.50, 51.50],
+					[0.70, 51.50]
 				]
 			}
 		},
 		{
 			type: 'Feature',
-			properties: { name: 'Ireland' },
+			properties: { name: 'Severn' },
 			geometry: {
-				type: 'Polygon',
+				type: 'LineString',
 				coordinates: [
-					[
-						[-6.03, 52.93],
-						[-6.25, 52.8],
-						[-6.35, 52.59],
-						[-6.54, 52.22],
-						[-6.6, 52.04],
-						[-6.5, 51.92],
-						[-6.95, 51.9],
-						[-7.31, 51.82],
-						[-7.83, 51.7],
-						[-8.26, 51.8],
-						[-8.58, 51.57],
-						[-9.02, 51.52],
-						[-9.42, 51.48],
-						[-9.91, 51.58],
-						[-10.17, 51.76],
-						[-10.37, 51.9],
-						[-10.28, 52.04],
-						[-9.97, 52.23],
-						[-9.91, 52.34],
-						[-9.67, 52.52],
-						[-9.46, 52.55],
-						[-9.36, 52.63],
-						[-9.48, 52.78],
-						[-9.84, 53.06],
-						[-9.93, 53.16],
-						[-10.1, 53.3],
-						[-10.16, 53.42],
-						[-10.06, 53.54],
-						[-9.88, 53.5],
-						[-9.56, 53.5],
-						[-9.3, 53.51],
-						[-9.1, 53.53],
-						[-8.93, 53.65],
-						[-8.73, 53.79],
-						[-8.53, 53.88],
-						[-8.48, 54.01],
-						[-8.21, 54.02],
-						[-8.15, 54.11],
-						[-8.04, 54.25],
-						[-8.13, 54.33],
-						[-8.27, 54.35],
-						[-8.42, 54.47],
-						[-8.32, 54.58],
-						[-8.36, 54.66],
-						[-8.18, 54.66],
-						[-7.96, 54.71],
-						[-7.78, 54.72],
-						[-7.58, 54.76],
-						[-7.34, 54.77],
-						[-7.18, 54.83],
-						[-7.26, 54.95],
-						[-7.35, 55.04],
-						[-7.52, 55.04],
-						[-7.64, 55.13],
-						[-7.56, 55.27],
-						[-7.69, 55.34],
-						[-7.86, 55.37],
-						[-8.1, 55.27],
-						[-8.25, 55.23],
-						[-8.35, 55.18],
-						[-8.17, 55.05],
-						[-8.05, 54.99],
-						[-7.86, 54.95],
-						[-7.71, 55.07],
-						[-7.5, 54.95],
-						[-7.23, 54.84],
-						[-7.16, 54.76],
-						[-6.98, 54.65],
-						[-6.66, 54.58],
-						[-6.36, 54.51],
-						[-6.23, 54.42],
-						[-6.04, 54.37],
-						[-5.88, 54.32],
-						[-5.75, 54.25],
-						[-5.66, 54.22],
-						[-5.57, 54.07],
-						[-5.54, 53.93],
-						[-5.7, 53.82],
-						[-5.77, 53.73],
-						[-5.92, 53.61],
-						[-6.02, 53.52],
-						[-6.05, 53.42],
-						[-5.99, 53.29],
-						[-6.05, 53.18],
-						[-6.04, 53.08],
-						[-6.03, 52.93]
-					]
+					[-3.80, 52.50],
+					[-3.60, 52.44],
+					[-3.40, 52.38],
+					[-3.20, 52.32],
+					[-3.00, 52.26],
+					[-2.78, 52.18],
+					[-2.60, 52.08],
+					[-2.46, 51.98],
+					[-2.36, 51.88],
+					[-2.28, 51.78],
+					[-2.22, 51.70],
+					[-2.60, 51.62],
+					[-2.68, 51.60],
+					[-2.72, 51.56],
+					[-2.70, 51.52],
+					[-2.70, 51.50]
+				]
+			}
+		},
+		{
+			type: 'Feature',
+			properties: { name: 'Trent' },
+			geometry: {
+				type: 'LineString',
+				coordinates: [
+					[-2.00, 52.70],
+					[-1.90, 52.75],
+					[-1.78, 52.82],
+					[-1.62, 52.92],
+					[-1.46, 53.00],
+					[-1.28, 53.04],
+					[-1.10, 53.08],
+					[-0.92, 53.16],
+					[-0.76, 53.28],
+					[-0.62, 53.42],
+					[-0.60, 53.56],
+					[-0.66, 53.66],
+					[-0.70, 53.70]
+				]
+			}
+		},
+		{
+			type: 'Feature',
+			properties: { name: 'Humber' },
+			geometry: {
+				type: 'LineString',
+				coordinates: [
+					[-1.00, 53.80],
+					[-0.80, 53.74],
+					[-0.60, 53.70],
+					[-0.40, 53.66],
+					[-0.20, 53.63],
+					[0.00, 53.62],
+					[0.10, 53.60]
+				]
+			}
+		},
+		{
+			type: 'Feature',
+			properties: { name: 'Tyne' },
+			geometry: {
+				type: 'LineString',
+				coordinates: [
+					[-2.40, 54.90],
+					[-2.20, 54.94],
+					[-2.00, 54.96],
+					[-1.82, 54.98],
+					[-1.64, 54.98],
+					[-1.48, 54.99],
+					[-1.42, 55.00]
+				]
+			}
+		},
+		{
+			type: 'Feature',
+			properties: { name: 'Forth' },
+			geometry: {
+				type: 'LineString',
+				coordinates: [
+					[-4.00, 56.10],
+					[-3.80, 56.08],
+					[-3.60, 56.08],
+					[-3.40, 56.06],
+					[-3.20, 56.06],
+					[-3.00, 56.05]
+				]
+			}
+		},
+		{
+			type: 'Feature',
+			properties: { name: 'Tay' },
+			geometry: {
+				type: 'LineString',
+				coordinates: [
+					[-4.30, 56.60],
+					[-4.10, 56.56],
+					[-3.90, 56.54],
+					[-3.70, 56.52],
+					[-3.50, 56.50],
+					[-3.30, 56.48],
+					[-3.10, 56.46],
+					[-3.00, 56.45]
+				]
+			}
+		},
+		{
+			type: 'Feature',
+			properties: { name: 'Tweed' },
+			geometry: {
+				type: 'LineString',
+				coordinates: [
+					[-3.30, 55.60],
+					[-3.10, 55.64],
+					[-2.90, 55.68],
+					[-2.70, 55.72],
+					[-2.50, 55.74],
+					[-2.30, 55.76],
+					[-2.00, 55.77]
+				]
+			}
+		},
+		{
+			type: 'Feature',
+			properties: { name: 'Exe' },
+			geometry: {
+				type: 'LineString',
+				coordinates: [
+					[-3.60, 51.10],
+					[-3.54, 50.96],
+					[-3.52, 50.84],
+					[-3.50, 50.74],
+					[-3.48, 50.66],
+					[-3.44, 50.62],
+					[-3.40, 50.60]
+				]
+			}
+		},
+		{
+			type: 'Feature',
+			properties: { name: 'Wye' },
+			geometry: {
+				type: 'LineString',
+				coordinates: [
+					[-3.50, 52.30],
+					[-3.30, 52.24],
+					[-3.10, 52.18],
+					[-2.90, 52.12],
+					[-2.72, 52.02],
+					[-2.60, 51.90],
+					[-2.66, 51.78],
+					[-2.66, 51.70],
+					[-2.66, 51.61]
 				]
 			}
 		}

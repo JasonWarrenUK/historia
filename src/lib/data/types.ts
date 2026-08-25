@@ -15,9 +15,7 @@ export interface Kingdom {
 	center: [number, number];
 	territory: string;
 	color: string;
-	radius: number;
-	stretch?: number;
-	polygon?: [number, number][];
+	regions: string[];
 }
 
 export interface HistoricalPeriod {
