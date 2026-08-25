@@ -18,6 +18,7 @@
 				class="p-2 rounded-full transition-colors"
 				style="background-color: #8b6914; color: #f8f0d8;"
 				aria-label={mapStore.playing ? 'Pause' : 'Play'}
+				aria-pressed={mapStore.playing}
 			>
 				{#if mapStore.playing}
 					<Pause size={18} />
@@ -30,6 +31,7 @@
 					onclick={() => mapStore.jumpToEvent(mapStore.relevantEvents[0].year)}
 					class="absolute -top-1.5 -right-1.5 text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none transition-colors"
 					style="background-color: #a07a1e; color: #f8f0d8;"
+					aria-label="Jump to {mapStore.relevantEvents.length} event{mapStore.relevantEvents.length === 1 ? '' : 's'} nearby"
 					title="{mapStore.relevantEvents.length} event{mapStore.relevantEvents.length === 1 ? '' : 's'} nearby"
 				>
 					{mapStore.relevantEvents.length}
@@ -57,6 +59,7 @@
 				oninput={(e) => mapStore.setYear(Number((e.target as HTMLInputElement).value))}
 				class="relative w-full accent-amber-500 z-10"
 				aria-label="Year slider"
+				aria-valuetext="Year {mapStore.year} CE"
 			/>
 		</div>
 
@@ -68,6 +71,7 @@
 		{#each mapStore.periodYears as y}
 			<button
 				onclick={() => mapStore.setYear(y, { animate: true })}
+				aria-pressed={mapStore.nearestPeriodYear === y}
 				class="px-2 py-0.5 text-xs rounded transition-colors"
 				style={mapStore.nearestPeriodYear === y
 					? 'background-color: #8b6914; color: #f8f0d8;'
