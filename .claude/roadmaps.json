@@ -1,0 +1,63 @@
+[
+	{
+		"name": "Historia Foundation",
+		"path": "docs/roadmaps/HISTORIA_FOUNDATION.md",
+		"project": "Historia",
+		"archived": false,
+		"externalGates": [],
+		"milestones": [
+			{
+				"id": "M1",
+				"name": "Map Fidelity",
+				"goal": "Get the MapLibre renderer and region data to a trustworthy, good-looking baseline",
+				"tasks": [
+					{ "id": "1MF.0", "description": "Establish one fully correct reference kingdom (regions dissolved correctly + complete data) to validate the region-to-kingdom pipeline end to end", "status": "todo", "dependsOn": [] },
+					{ "id": "1MF.1", "description": "Fix remaining region boundary gaps and mismatches across the topology using the reference kingdom as the validated pattern", "status": "blocked", "dependsOn": ["1MF.0"] },
+					{ "id": "1MF.2", "description": "Refine atlas-style colours and coastline rendering for visual fidelity", "status": "todo", "dependsOn": [] },
+					{ "id": "1MF.3", "description": "Pass over kingdom fill and border treatment once boundaries are correct", "status": "blocked", "dependsOn": ["1MF.1"] },
+					{ "id": "1MF.4", "description": "Spike: decide how to represent kingdoms/borders for periods where the historical record only supports incomplete or contested boundaries (e.g. fuzzy-edge styling, confidence bands, omission vs approximation)", "status": "blocked", "dependsOn": ["1MF.0", "1MF.1"], "notes": "Research/design spike, not implementation; output is a decision the rest of M1/M2 border work can follow" }
+				]
+			},
+			{
+				"id": "M2",
+				"name": "Content",
+				"goal": "Bring events, artifacts and kingdoms data to a depth that matches the timeline's 766-year span",
+				"tasks": [
+					{ "id": "2CN.1", "description": "Expand events.ts (currently 13 events across 300-1066 CE) with a fuller set of key historical events", "status": "todo", "dependsOn": [] },
+					{ "id": "2CN.2", "description": "Expand artifacts.ts with more artifacts/sites across all four eras", "status": "todo", "dependsOn": [] },
+					{ "id": "2CN.3", "description": "Fill remaining kingdoms data gaps per era using the reference kingdom's region-assignment pattern", "status": "blocked", "dependsOn": ["1MF.0", "1MF.4"] }
+				]
+			},
+			{
+				"id": "M3",
+				"name": "UX Polish",
+				"goal": "Tune interaction and information density now that content and map fidelity have real data to design against",
+				"tasks": [
+					{ "id": "3UX.1", "description": "Tune timeline scrub/playback pacing and smoothness against the expanded event set", "status": "blocked", "dependsOn": ["2CN.1"] },
+					{ "id": "3UX.2", "description": "Pass over sidebar/panel interaction (KingdomPanel, ArtifactPanel, lists) against realistic data density", "status": "blocked", "dependsOn": ["2CN.2", "2CN.3"] },
+					{ "id": "3UX.3", "description": "Refine tooltip and legend styling and behaviour", "status": "todo", "dependsOn": [] },
+					{ "id": "3UX.4", "description": "Evaluate map interaction (zoom/pan/click/hover/period transitions) against the reference kingdom's real region geometry", "status": "blocked", "dependsOn": ["1MF.0"] }
+				]
+			},
+			{
+				"id": "M4",
+				"name": "Deploy",
+				"goal": "Get a live, shareable URL up early, independent of content completeness",
+				"tasks": [
+					{ "id": "4DP.1", "description": "Pick deploy target (Vercel or GitHub Pages) and confirm it suits SvelteKit + static topology data", "status": "todo", "dependsOn": [] },
+					{ "id": "4DP.2", "description": "Configure the matching SvelteKit adapter for the chosen target", "status": "todo", "dependsOn": [] },
+					{ "id": "4DP.3", "description": "Verify the build passes (svelte-kit sync + svelte-check clean), then deploy and confirm the live URL renders the map", "status": "todo", "dependsOn": [] }
+				]
+			},
+			{
+				"id": "M5",
+				"name": "Hardening",
+				"goal": "Confirm the phase's work holds together before calling Historia Foundation done",
+				"tasks": [
+					{ "id": "5HD.1", "description": "Run svelte-check clean across the full app once M1-M3 have landed", "status": "blocked", "dependsOn": ["M1", "M2", "M3"] },
+					{ "id": "5HD.2", "description": "Manual QA pass scrubbing the full timeline across all four eras, checking map, panels and data consistency", "status": "blocked", "dependsOn": ["5HD.1"] }
+				]
+			}
+		]
+	}
+]
