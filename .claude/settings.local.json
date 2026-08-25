@@ -4,7 +4,13 @@
       "Bash(bun create:*)",
       "Bash(bunx sv:*)",
       "Bash(bun add:*)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(git:*)",
+      "Bash(sleep:*)",
+      "Bash(find:*)",
+      "Bash(ref=\"$\\(find '/Users/jasonwarren/Documents/Screenshots/' -name '*2026-03-16*2*11*10*Dia*' -print -quit\\)\" && echo \"$ref\" | xxd | head -5)",
+      "Bash(bun:*)",
+      "Bash(wc:*)"
     ]
   }
 }
