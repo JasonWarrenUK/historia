@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { initMap, resizeMap, updateKingdoms, updateArtifacts } from '$lib/map/renderer.js';
+	import 'maplibre-gl/dist/maplibre-gl.css';
+	import { createMap, updateKingdoms, updateArtifacts, highlightKingdom } from '$lib/map/map-renderer.js';
+	import { loadTopology } from '$lib/data/geo.js';
 	import { mapStore } from '$lib/stores/map.svelte.js';
 	import Tooltip from '$lib/components/Tooltip.svelte';
+	import MapDecorations from '$lib/components/MapDecorations.svelte';
 	import type { Kingdom, Artifact } from '$lib/data/types.js';
+	import type { Map as MapLibreMap } from 'maplibre-gl';
 
-	let svgEl = $state<SVGSVGElement | null>(null);
 	let containerEl = $state<HTMLDivElement | null>(null);
-	let dimensions = $state({ width: 500, height: 700 });
-	let mapInitialised = $state(false);
+	let map: MapLibreMap | null = null;
+	let mapReady = $state(false);
+	let topoError = $state<string | null>(null);
 
 	// Tooltip state
 	let tooltipX = $state(0);
@@ -30,121 +34,73 @@
 		tooltipY = y;
 	}
 
-	// Called by zoom events so labels can recompute visibility thresholds
-	function onZoom() {
-		if (!svgEl || !mapInitialised) return;
-		updateKingdoms(
-			svgEl,
-			mapStore.currentPeriod.kingdoms,
-			mapStore.selectedKingdom?.id ?? null,
-			(k) => { mapStore.selectedKingdom = k; },
-			handleKingdomHover
-		);
-	}
-
-	// Re-run when kingdoms or selection changes
+	// Kingdoms/period effect
 	$effect(() => {
-		if (!svgEl || !mapInitialised) return;
-		mapStore.currentPeriod;
-		mapStore.selectedKingdom;
-		updateKingdoms(
-			svgEl,
-			mapStore.currentPeriod.kingdoms,
-			mapStore.selectedKingdom?.id ?? null,
-			(k) => { mapStore.selectedKingdom = k; },
-			handleKingdomHover
-		);
+		if (!map || !mapReady) return;
+		const ks = mapStore.currentPeriod.kingdoms;
+		const selectedId = mapStore.selectedKingdom?.id ?? null;
+		updateKingdoms(map, ks, selectedId);
 	});
 
-	// Re-run when artefacts or visibility changes
+	// Selection highlight effect (selection changes without period change)
 	$effect(() => {
-		if (!svgEl || !mapInitialised) return;
-		mapStore.visibleArtifacts;
-		mapStore.showArtifacts;
-		updateArtifacts(
-			svgEl,
-			mapStore.visibleArtifacts,
-			mapStore.showArtifacts,
-			(a) => mapStore.selectArtifact(a),
-			handleArtifactHover
-		);
+		if (!map || !mapReady) return;
+		mapStore.currentPeriod; // track period too so highlight updates after crossfade
+		const selectedId = mapStore.selectedKingdom?.id ?? null;
+		highlightKingdom(map, selectedId);
 	});
 
-	// Re-run on resize (after map is initialised)
+	// Artifacts effect
 	$effect(() => {
-		if (!svgEl || !mapInitialised) return;
-		const { width, height } = dimensions;
-		resizeMap(svgEl, width, height);
-		// After resize, re-draw data layers
-		updateKingdoms(
-			svgEl,
-			mapStore.currentPeriod.kingdoms,
-			mapStore.selectedKingdom?.id ?? null,
-			(k) => { mapStore.selectedKingdom = k; },
-			handleKingdomHover
-		);
-		updateArtifacts(
-			svgEl,
-			mapStore.visibleArtifacts,
-			mapStore.showArtifacts,
-			(a) => mapStore.selectArtifact(a),
-			handleArtifactHover
-		);
+		if (!map || !mapReady) return;
+		updateArtifacts(map, mapStore.visibleArtifacts, mapStore.showArtifacts);
 	});
 
 	onMount(() => {
 		if (!containerEl) return;
 
-		const observer = new ResizeObserver((entries) => {
-			const entry = entries[0];
-			if (!entry) return;
-			const { width } = entry.contentRect;
-			const w = Math.max(300, width);
-			const h = Math.max(400, width * 1.4);
+		loadTopology().then((topo) => {
+			if (!containerEl) return;
 
-			if (!mapInitialised && svgEl) {
-				dimensions = { width: w, height: h };
-				initMap(svgEl, w, h, onZoom);
-				mapInitialised = true;
-				// Draw initial data
-				updateKingdoms(
-					svgEl,
-					mapStore.currentPeriod.kingdoms,
-					mapStore.selectedKingdom?.id ?? null,
-					(k) => { mapStore.selectedKingdom = k; },
-					handleKingdomHover
-				);
-				updateArtifacts(
-					svgEl,
-					mapStore.visibleArtifacts,
-					mapStore.showArtifacts,
-					(a) => mapStore.selectArtifact(a),
-					handleArtifactHover
-				);
-			} else {
-				dimensions = { width: w, height: h };
-			}
+			map = createMap(containerEl, topo, {
+				onKingdomClick: (k) => { mapStore.selectedKingdom = k; },
+				onKingdomHover: handleKingdomHover,
+				onArtifactClick: (a) => mapStore.selectArtifact(a),
+				onArtifactHover: handleArtifactHover
+			});
+
+			map.on('load', () => {
+				mapReady = true;
+				updateKingdoms(map!, mapStore.currentPeriod.kingdoms, mapStore.selectedKingdom?.id ?? null);
+				updateArtifacts(map!, mapStore.visibleArtifacts, mapStore.showArtifacts);
+			});
+		}).catch((err) => {
+			topoError = err.message ?? 'Failed to load map data';
 		});
 
-		observer.observe(containerEl);
-		return () => observer.disconnect();
+		return () => {
+			map?.remove();
+			map = null;
+		};
 	});
 </script>
 
-<div bind:this={containerEl} class="relative flex-1 flex items-center justify-center p-2 bg-stone-900 min-h-0">
-	<svg
-		bind:this={svgEl}
-		width={dimensions.width}
-		height={dimensions.height}
-		class="rounded-lg shadow-2xl"
-	></svg>
-
+<div bind:this={containerEl} class="relative flex-1 min-h-0">
+	{#if topoError}
+		<div class="absolute inset-0 flex items-center justify-center bg-stone-100 text-stone-600">
+			<p>Map data failed to load: {topoError}</p>
+		</div>
+	{/if}
+	<MapDecorations
+		periodName={mapStore.currentPeriod.name}
+		year={mapStore.nearestPeriodYear}
+	/>
 	<Tooltip
 		x={tooltipX}
 		y={tooltipY}
 		kingdom={tooltipKingdom}
 		artifact={tooltipArtifact}
-		containerWidth={dimensions.width}
-		containerHeight={dimensions.height}
+		containerWidth={containerEl?.clientWidth ?? 500}
+		containerHeight={containerEl?.clientHeight ?? 700}
 	/>
 </div>
