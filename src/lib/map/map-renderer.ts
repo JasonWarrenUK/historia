@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import type { BritishIslesTopology } from '$lib/data/geo.js';
-import { getCoastlineGeoJSON, kingdomsToGeoJSON as buildKingdomsGeoJSON, britishIslesRiversGeoJSON, getKingdomBounds } from '$lib/data/geo.js';
+import { getCoastlineGeoJSON, kingdomsToGeoJSON as buildKingdomsGeoJSON, britishIslesRiversGeoJSON, getKingdomBounds, kingdomLabelsToGeoJSON, HUNDREDS_ATTRIBUTION } from '$lib/data/geo.js';
 import type { Kingdom, Artifact } from '$lib/data/types.js';
 import { ATLAS_COLORS, ATLAS_WIDTHS, ATLAS_OPACITIES } from './atlas-style.js';
 
@@ -69,6 +69,11 @@ export function createMap(
 		maxZoom: 12,
 		attributionControl: false
 	});
+
+	map.addControl(
+		new maplibregl.AttributionControl({ compact: true, customAttribution: HUNDREDS_ATTRIBUTION }),
+		'bottom-right'
+	);
 
 	map.on('load', () => {
 		// Coastline source — extracted from topology
@@ -156,6 +161,10 @@ export function createMap(
 
 		map.addSource('kingdoms-a', { type: 'geojson', data: emptyGeoJSON });
 		map.addSource('kingdoms-b', { type: 'geojson', data: emptyGeoJSON });
+		// Labels come from one point per kingdom, not the polygons, so a kingdom
+		// drawn in several parts is labelled once
+		map.addSource('kingdom-labels-a', { type: 'geojson', data: emptyGeoJSON });
+		map.addSource('kingdom-labels-b', { type: 'geojson', data: emptyGeoJSON });
 
 		for (const src of ['a', 'b'] as const) {
 			map.addLayer({
@@ -198,7 +207,7 @@ export function createMap(
 			map.addLayer({
 				id: `kingdoms-labels-${src}`,
 				type: 'symbol',
-				source: `kingdoms-${src}`,
+				source: `kingdom-labels-${src}`,
 				layout: {
 					'text-field': ['get', 'name'],
 					'text-size': 11,
@@ -227,7 +236,9 @@ export function createMap(
 				'text-field': ['get', 'emoji'],
 				'text-size': 20,
 				'text-anchor': 'center',
-				'text-allow-overlap': true
+				'text-allow-overlap': true,
+				// Icons would otherwise claim collision space and hide kingdom names
+				'text-ignore-placement': true
 			},
 			paint: {
 				'text-opacity': 1
@@ -335,6 +346,9 @@ export function updateKingdoms(
 
 	// Load data into inactive source
 	(map.getSource(`kingdoms-${inactive}`) as maplibregl.GeoJSONSource)?.setData(geoJSON);
+	(map.getSource(`kingdom-labels-${inactive}`) as maplibregl.GeoJSONSource)?.setData(
+		kingdomLabelsToGeoJSON(newKingdoms)
+	);
 
 	// Fade out active, fade in inactive
 	map.setPaintProperty(`kingdoms-fill-${activeSource}`, 'fill-opacity', 0);

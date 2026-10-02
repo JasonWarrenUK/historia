@@ -21,3 +21,7 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Geo source data (download: data/raw/README.md)
+data/raw/*
+!data/raw/README.md

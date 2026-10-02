@@ -4,9 +4,13 @@
 	Two placeholders, each substituted exactly once below: the phase-name
 	title (in the head; the h1 is overwritten by JS from project/phase, since
 	the two placeholders cannot diverge) and the JSON data blob
-	(project, phase, generated, stats, ready, mermaid, validation, devColours,
-	depKinds), which lands in the roadmap-data script element near the foot of
-	the document. Render does a global string replace, so the data-blob token
+	(project, phase, generated, stats, overview, tasks, ready, mermaid,
+	graphDirection, validation, devColours, depKinds), which lands in the
+	roadmap-data script element near the foot of the document. `overview` is
+	roadmap.py's own sort/tier-group computation for the Overview and
+	Milestones sections (see overview_layout() and roadmap-conventions.md);
+	the template renders it as given and never re-sorts or re-groups
+	milestones itself. Render does a global string replace, so the data-blob token
 	must appear verbatim exactly once in this file (the render step asserts
 	this); a second copy here would inject the blob into this comment and the
 	mermaid edge arrows would close the comment early and spill the JSON onto
@@ -21,156 +25,184 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Roadmap — Historia Foundation</title>
-<link rel="stylesheet" href="https://unpkg.com/reasonable-colors@0.4.0/reasonable-colors.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-	/* Milestone — sky (structural, steel-blue half of the terminal gradient) */
-	--color-milestone:       var(--color-sky-4);
-	--color-milestone-bg:    var(--color-sky-1);
-	--color-milestone-text:  var(--color-sky-6);
+	/* Palette: the roadmap system's own fixed status table (see roadmap.py
+	   STATUS_STYLE); literal hexes so the artefact is self-contained.
+	   Milestone — sky (structural, steel-blue half of the terminal gradient) */
+	--color-milestone:       #007590;
+	--color-milestone-bg:    #e3f7ff;
+	--color-milestone-text:  #001f28;
 	/* Primary accent — pink (warm half of the gradient; never a status) */
-	--color-primary:         var(--color-pink-4);
-	--color-primary-bg:      var(--color-pink-1);
-	--color-primary-text:    var(--color-pink-6);
+	--color-primary:         #d2008f;
+	--color-primary-bg:      #fff7fb;
+	--color-primary-text:    #4b0030;
 	/* Status semantics: green finished, gray blank, red stop, purple parked,
-	   cinnamon shelved, faded gray struck, yellow external */
-	--color-done:            var(--color-green-4);
-	--color-done-bg:         var(--color-green-1);
-	--color-todo:            var(--color-gray-4);
-	--color-todo-bg:         var(--color-gray-1);
-	--color-blocked:         var(--color-red-4);
-	--color-blocked-bg:      var(--color-red-1);
-	--color-paused:          var(--color-purple-4);
-	--color-paused-bg:       var(--color-purple-1);
-	--color-deferred:        var(--color-cinnamon-4);
-	--color-deferred-bg:     var(--color-cinnamon-1);
-	--color-out-of-scope:    var(--color-gray-3);
-	--color-out-of-scope-bg: var(--color-gray-1);
-	--color-gate:            var(--color-yellow-4);
-	--color-gate-bg:         var(--color-yellow-1);
-	/* Milestone-level derived state (see roadmap-conventions.md): azure is
-	   unclaimed by task status and distinct from sky (structural), so a
-	   part-done milestone reads as "live" rather than the same gray as
-	   untouched work. */
-	--color-in-progress:     var(--color-azure-4);
-	--color-in-progress-bg:  var(--color-azure-1);
+	   cinnamon shelved, dotted gray struck, yellow external */
+	--color-done:            #008217;
+	--color-done-bg:         #e0ffd9;
+	--color-todo:            #6f6f6f;
+	--color-todo-bg:         #f6f6f6;
+	--color-blocked:         #e0002b;
+	--color-blocked-bg:      #fff8f6;
+	--color-paused:          #b01fe3;
+	--color-paused-bg:       #fdf4ff;
+	--color-deferred:        #ac5c00;
+	--color-deferred-bg:     #fff8f3;
+	--color-out-of-scope:    #717171;
+	--color-out-of-scope-bg: #f6f6f6;
+	--color-gate:            #7d6f00;
+	--color-gate-bg:         #fff9e5;
+	/* Tier backgrounds (see roadmap.py TIER_STYLE): the fill behind a
+	   tier's subgraph in the dependency graph, slate while the tier is
+	   underway, taupe while it is deferred. Muted mid-tones, never a node
+	   colour: every node stroke clears 3:1 against them. */
+	--color-tier-underway:    #2f3b4c;
+	--color-tier-underway-bg: #c3cede;
+	--color-tier-deferred:    #4a3826;
+	--color-tier-deferred-bg: #dccbb9;
+	/* In progress (see roadmap-conventions.md): azure marks a claimed task
+	   still in play and the milestone state it drives, the way milestone
+	   states share their task-status hues. Distinct from sky (structural),
+	   though close enough that diagram labels also carry a marker. */
+	--color-in-progress:     #0071af;
+	--color-in-progress-bg:  #e8f2ff;
 	/* Dev-chip palette: assignee is free-text with no roster (never
 	   inferred), so chips are coloured by a stable hash, never a hardcoded
 	   name map. Disjoint from every status/milestone/gate hue above. */
-	--color-dev-teal:        var(--color-teal-4);
-	--color-dev-teal-bg:     var(--color-teal-1);
-	--color-dev-lime:        var(--color-lime-4);
-	--color-dev-lime-bg:     var(--color-lime-1);
-	--color-dev-magenta:     var(--color-magenta-4);
-	--color-dev-magenta-bg:  var(--color-magenta-1);
-	--color-dev-indigo:      var(--color-indigo-4);
-	--color-dev-indigo-bg:   var(--color-indigo-1);
-	--color-dev-amber:       var(--color-amber-4);
-	--color-dev-amber-bg:    var(--color-amber-1);
-	--color-dev-rose:        var(--color-rose-4);
-	--color-dev-rose-bg:     var(--color-rose-1);
+	--color-dev-teal:        #007c6e;
+	--color-dev-teal-bg:     #d7fff7;
+	--color-dev-lime:        #677600;
+	--color-dev-lime-bg:     #f7ffac;
+	--color-dev-magenta:     #ca00b6;
+	--color-dev-magenta-bg:  #fff3fc;
+	--color-dev-indigo:      #0061fc;
+	--color-dev-indigo-bg:   #f3f3ff;
+	--color-dev-amber:       #926700;
+	--color-dev-amber-bg:    #fff8ef;
+	--color-dev-rose:        #db0072;
+	--color-dev-rose-bg:     #fff7f9;
 
-	--bg: var(--color-gray-1);
+	--bg: #f6f6f6;
 	--surface: #ffffff;
-	--text: var(--color-gray-6);
-	--muted: var(--color-gray-4);
-	--line: var(--color-gray-2);
+	--text: #222222;
+	--muted: #6f6f6f;
+	--line: #e2e2e2;
 	--grid-line: rgba(0, 117, 144, 0.06);
+	/* Mermaid chrome (edge stroke, arrowhead, edge-label backing) that the
+	   diagram's own classDefs don't cover — see the render script below for
+	   why this can't just be mermaid's base-theme default. */
+	--diagram-line: #6f6f6f;
+	--diagram-edge-label-bg: #ffffff;
+	--diagram-text: var(--text);
 }
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) {
-		--color-milestone:       var(--color-sky-2);
-		--color-milestone-bg:    var(--color-sky-6);
-		--color-milestone-text:  var(--color-sky-1);
-		--color-primary:         var(--color-pink-2);
-		--color-primary-bg:      var(--color-pink-6);
-		--color-primary-text:    var(--color-pink-1);
-		--color-done:            var(--color-green-2);
-		--color-done-bg:         var(--color-green-6);
-		--color-todo:            var(--color-gray-3);
-		--color-todo-bg:         var(--color-gray-6);
-		--color-blocked:         var(--color-red-2);
-		--color-blocked-bg:      var(--color-red-6);
-		--color-paused:          var(--color-purple-2);
-		--color-paused-bg:       var(--color-purple-6);
-		--color-deferred:        var(--color-cinnamon-2);
-		--color-deferred-bg:     var(--color-cinnamon-6);
-		--color-out-of-scope:    var(--color-gray-5);
-		--color-out-of-scope-bg: var(--color-gray-6);
-		--color-gate:            var(--color-yellow-2);
-		--color-gate-bg:         var(--color-yellow-6);
-		--color-in-progress:     var(--color-azure-2);
-		--color-in-progress-bg:  var(--color-azure-6);
-		--color-dev-teal:        var(--color-teal-2);
-		--color-dev-teal-bg:     var(--color-teal-6);
-		--color-dev-lime:        var(--color-lime-2);
-		--color-dev-lime-bg:     var(--color-lime-6);
-		--color-dev-magenta:     var(--color-magenta-2);
-		--color-dev-magenta-bg:  var(--color-magenta-6);
-		--color-dev-indigo:      var(--color-indigo-2);
-		--color-dev-indigo-bg:   var(--color-indigo-6);
-		--color-dev-amber:       var(--color-amber-2);
-		--color-dev-amber-bg:    var(--color-amber-6);
-		--color-dev-rose:        var(--color-rose-2);
-		--color-dev-rose-bg:     var(--color-rose-6);
+		--color-milestone:       #aee9ff;
+		--color-milestone-bg:    #001f28;
+		--color-milestone-text:  #e3f7ff;
+		--color-primary:         #ffdcec;
+		--color-primary-bg:      #4b0030;
+		--color-primary-text:    #fff7fb;
+		--color-done:            #72ff6c;
+		--color-done-bg:         #062800;
+		--color-todo:            #8b8b8b;
+		--color-todo-bg:         #222222;
+		--color-blocked:         #ffddd8;
+		--color-blocked-bg:      #530003;
+		--color-paused:          #f7d9ff;
+		--color-paused-bg:       #3a004f;
+		--color-deferred:        #ffdfc6;
+		--color-deferred-bg:     #371d00;
+		--color-out-of-scope:    #898989;
+		--color-out-of-scope-bg: #222222;
+		--color-gate:            #ffe53e;
+		--color-gate-bg:         #292300;
+		--color-tier-underway:    #d5deea;
+		--color-tier-underway-bg: #343e4f;
+		--color-tier-deferred:    #ecdccb;
+		--color-tier-deferred-bg: #4a3c2f;
+		--color-in-progress:     #c6e0ff;
+		--color-in-progress-bg:  #001c30;
+		--color-dev-teal:        #00ffe4;
+		--color-dev-teal-bg:     #002722;
+		--color-dev-lime:        #d5f200;
+		--color-dev-lime-bg:     #222600;
+		--color-dev-magenta:     #ffd7f6;
+		--color-dev-magenta-bg:  #44003c;
+		--color-dev-indigo:      #deddff;
+		--color-dev-indigo-bg:   #001649;
+		--color-dev-amber:       #ffe0b2;
+		--color-dev-amber-bg:    #302100;
+		--color-dev-rose:        #ffdce5;
+		--color-dev-rose-bg:     #4c0023;
 
 		--bg: #121216;
 		--surface: #1b1b21;
-		--text: var(--color-gray-1);
-		--muted: var(--color-gray-3);
-		--line: var(--color-gray-5);
+		--text: #f6f6f6;
+		--muted: #8b8b8b;
+		--line: #3e3e3e;
 		--grid-line: rgba(174, 233, 255, 0.05);
+		--diagram-line: #8b8b8b;
+		--diagram-edge-label-bg: var(--surface);
+		--diagram-text: var(--text);
 	}
 }
 /* Third theming state: an explicit toggle wins in both directions, even
-   against a light OS preference. No toggle UI ships today, but the contract
-   is the same three-state shape every other artefact uses (see
-   library/references/artefact-conventions.md), so a future toggle just
-   works. */
+   against a light OS preference. The masthead ships the light/system/dark
+   control from library/references/artefact-conventions.md; this block is
+   what it writes to when a reader picks light or dark explicitly. */
 :root[data-theme="dark"] {
-	--color-milestone:       var(--color-sky-2);
-	--color-milestone-bg:    var(--color-sky-6);
-	--color-milestone-text:  var(--color-sky-1);
-	--color-primary:         var(--color-pink-2);
-	--color-primary-bg:      var(--color-pink-6);
-	--color-primary-text:    var(--color-pink-1);
-	--color-done:            var(--color-green-2);
-	--color-done-bg:         var(--color-green-6);
-	--color-todo:            var(--color-gray-3);
-	--color-todo-bg:         var(--color-gray-6);
-	--color-blocked:         var(--color-red-2);
-	--color-blocked-bg:      var(--color-red-6);
-	--color-paused:          var(--color-purple-2);
-	--color-paused-bg:       var(--color-purple-6);
-	--color-deferred:        var(--color-cinnamon-2);
-	--color-deferred-bg:     var(--color-cinnamon-6);
-	--color-out-of-scope:    var(--color-gray-5);
-	--color-out-of-scope-bg: var(--color-gray-6);
-	--color-gate:            var(--color-yellow-2);
-	--color-gate-bg:         var(--color-yellow-6);
-	--color-in-progress:     var(--color-azure-2);
-	--color-in-progress-bg:  var(--color-azure-6);
-	--color-dev-teal:        var(--color-teal-2);
-	--color-dev-teal-bg:     var(--color-teal-6);
-	--color-dev-lime:        var(--color-lime-2);
-	--color-dev-lime-bg:     var(--color-lime-6);
-	--color-dev-magenta:     var(--color-magenta-2);
-	--color-dev-magenta-bg:  var(--color-magenta-6);
-	--color-dev-indigo:      var(--color-indigo-2);
-	--color-dev-indigo-bg:   var(--color-indigo-6);
-	--color-dev-amber:       var(--color-amber-2);
-	--color-dev-amber-bg:    var(--color-amber-6);
-	--color-dev-rose:        var(--color-rose-2);
-	--color-dev-rose-bg:     var(--color-rose-6);
+	--color-milestone:       #aee9ff;
+	--color-milestone-bg:    #001f28;
+	--color-milestone-text:  #e3f7ff;
+	--color-primary:         #ffdcec;
+	--color-primary-bg:      #4b0030;
+	--color-primary-text:    #fff7fb;
+	--color-done:            #72ff6c;
+	--color-done-bg:         #062800;
+	--color-todo:            #8b8b8b;
+	--color-todo-bg:         #222222;
+	--color-blocked:         #ffddd8;
+	--color-blocked-bg:      #530003;
+	--color-paused:          #f7d9ff;
+	--color-paused-bg:       #3a004f;
+	--color-deferred:        #ffdfc6;
+	--color-deferred-bg:     #371d00;
+	--color-out-of-scope:    #898989;
+	--color-out-of-scope-bg: #222222;
+	--color-gate:            #ffe53e;
+	--color-gate-bg:         #292300;
+	--color-tier-underway:    #d5deea;
+	--color-tier-underway-bg: #343e4f;
+	--color-tier-deferred:    #ecdccb;
+	--color-tier-deferred-bg: #4a3c2f;
+	--color-in-progress:     #c6e0ff;
+	--color-in-progress-bg:  #001c30;
+	--color-dev-teal:        #00ffe4;
+	--color-dev-teal-bg:     #002722;
+	--color-dev-lime:        #d5f200;
+	--color-dev-lime-bg:     #222600;
+	--color-dev-magenta:     #ffd7f6;
+	--color-dev-magenta-bg:  #44003c;
+	--color-dev-indigo:      #deddff;
+	--color-dev-indigo-bg:   #001649;
+	--color-dev-amber:       #ffe0b2;
+	--color-dev-amber-bg:    #302100;
+	--color-dev-rose:        #ffdce5;
+	--color-dev-rose-bg:     #4c0023;
 
 	--bg: #121216;
 	--surface: #1b1b21;
-	--text: var(--color-gray-1);
-	--muted: var(--color-gray-3);
-	--line: var(--color-gray-5);
+	--text: #f6f6f6;
+	--muted: #8b8b8b;
+	--line: #3e3e3e;
 	--grid-line: rgba(174, 233, 255, 0.05);
+	--diagram-line: #8b8b8b;
+	--diagram-edge-label-bg: var(--surface);
+	--diagram-text: var(--text);
 }
 
 * { box-sizing: border-box; }
@@ -195,8 +227,20 @@ nav a { display: block; padding: 0.35rem 0.6rem; color: var(--muted); text-decor
 nav a:hover, nav a.active { color: var(--color-milestone); border-left-color: var(--color-milestone); }
 main { flex: 1; min-width: 0; padding: 2rem 0 4rem; }
 
+header.page { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 header.page h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 0.2rem; }
 header.page .meta { font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--muted); }
+
+.theme-toggle { display: flex; gap: 0.15rem; margin-left: auto; flex: none; }
+.theme-toggle button {
+	font: 600 0.8rem "IBM Plex Mono", monospace; line-height: 1;
+	color: var(--muted); background: var(--surface); border: 1px solid var(--line);
+	border-radius: 3px; padding: 0.3rem 0.55rem; cursor: pointer;
+}
+.theme-toggle button:hover { color: var(--text); border-color: var(--color-milestone); }
+.theme-toggle button:focus-visible { outline: 2px solid var(--color-milestone); outline-offset: 2px; }
+.theme-toggle button[aria-pressed="true"] { color: var(--color-milestone-text); background: var(--color-milestone-bg); border-color: var(--color-milestone); }
+@media print { .theme-toggle { display: none; } }
 
 section { margin-top: 2.5rem; }
 h2 {
@@ -207,9 +251,6 @@ h2 {
 h2 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-milestone); flex-shrink: 0; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.3rem; min-width: 0; }
-.card--hero { background: var(--color-milestone-bg); border-color: var(--color-milestone); }
-.card--hero .kpi { font-size: 2.1rem; font-weight: 600; color: var(--color-milestone-text); }
-.card--hero .kpi small { font-size: 1rem; font-weight: 400; color: var(--color-milestone); margin-left: 0.5rem; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.9rem; margin-top: 0.9rem; }
 .grid > * { min-width: 0; }
@@ -218,6 +259,41 @@ h2 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-m
 .mini .count { font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--muted); }
 .progress-bar { height: 6px; background: var(--line); border-radius: 3px; margin-top: 0.55rem; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 3px; }
+
+/* Overview is itself a <details>, shipped open: the progress-card grid
+   follows the summary in the body. Closed by the reader, it shows only the
+   section name and headline bar (both live in the summary). Reuses
+   details.milestone's shape rather than a second pattern. */
+details.overview { border: none; background: none; margin-bottom: 0; }
+details.overview > summary {
+	cursor: pointer; list-style: none; display: flex; align-items: center;
+	flex-wrap: wrap; gap: 0.5rem 1rem; padding: 0;
+}
+details.overview > summary::-webkit-details-marker { display: none; }
+details.overview > summary h2 { margin: 0; }
+details.overview .headline {
+	font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--muted);
+}
+details.overview .body { margin-top: 1rem; }
+
+/* A tier group: its own <details>, expanded per overview.tiers[].expanded.
+   Unwrapped (no tier markup at all) when the phase has no tiered
+   milestones; see the JS below. */
+details.tier { margin-bottom: 1.1rem; }
+details.tier > summary {
+	cursor: pointer; list-style: none; display: flex; align-items: baseline;
+	gap: 0.6rem; margin-bottom: 0.7rem;
+}
+details.tier > summary::-webkit-details-marker { display: none; }
+details.tier > summary h3 {
+	margin: 0; font-family: "IBM Plex Mono", monospace; font-size: 0.78rem;
+	font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+}
+details.tier > summary .readout {
+	font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--muted);
+}
+details.tier > summary .arrow { font-size: 0.7rem; color: var(--muted); transition: transform 0.15s; }
+details.tier[open] > summary .arrow { transform: rotate(90deg); }
 
 details.milestone {
 	background: var(--surface); border: 1px solid var(--m-colour, var(--line));
@@ -233,10 +309,23 @@ details.milestone > summary .mid {
 	background: var(--color-milestone-bg); color: var(--color-milestone-text);
 	border: 1px solid var(--color-milestone); border-radius: 4px; padding: 0.1rem 0.4rem;
 }
-details.milestone > summary .count { margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+details.milestone > summary .devs { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; margin-left: auto; }
+/* The count sits at the far right of every milestone summary. With dev
+   chips present they take the auto margin and the count follows them;
+   without, the count takes it itself. */
+details.milestone > summary .count { font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--muted); white-space: nowrap; margin-left: auto; }
+details.milestone > summary .devs + .count { margin-left: 0; }
 details.milestone .body { padding: 0 1.2rem 1rem; }
 .group h4 { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin: 0.9rem 0 0.35rem; }
 .group ul { list-style: none; margin: 0; padding: 0; }
+/* A status group that folds away (blocked, done, out of scope): closed by default, the
+   summary is its heading plus a task count. Same arrow as details.tier. */
+details.statusgroup > summary {
+	cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 0.45rem;
+}
+details.statusgroup > summary::-webkit-details-marker { display: none; }
+details.statusgroup > summary .arrow { font-size: 0.7rem; color: var(--muted); transition: transform 0.15s; }
+details.statusgroup[open] > summary .arrow { transform: rotate(90deg); }
 .group li { padding: 0.28rem 0; overflow-wrap: break-word; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; }
 .tid {
 	font-family: "IBM Plex Mono", monospace; font-size: 0.72rem;
@@ -282,10 +371,15 @@ li.oos { text-decoration: line-through; color: var(--muted); }
 .legend .key--mile { font-weight: 600; }
 .legend .key--gate { font-style: italic; }
 .legend .keynote { flex-basis: 100%; }
+/* The two tier swatches: shown only for a tiered phase (see the JS below),
+   laid out as two more keys in the same row. */
+#tier-keys:not([hidden]) { display: contents; }
 
 .nextup li:not(.nextup-devgroup) { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; padding: 0.3rem 0; }
-.nextup-devgroup { display: block; padding: 0; margin-top: 1rem; }
-.nextup-devgroup:first-child { margin-top: 0; }
+/* li.nextup-devgroup, not .nextup-devgroup: .group li (display:flex) would
+   otherwise outrank it and lay a heading out beside its own list */
+.nextup li.nextup-devgroup { display: block; padding: 0; margin-top: 1rem; }
+.nextup li.nextup-devgroup:first-child { margin-top: 0; }
 .nextup-devgroup h4 { margin: 0 0 0.4rem; font-size: 0.72rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .signal { color: var(--muted); font-size: 0.78rem; font-family: "IBM Plex Mono", monospace; margin-left: auto; }
 
@@ -301,6 +395,37 @@ li.oos { text-decoration: line-through; color: var(--muted); }
 </style>
 </head>
 <body>
+<script>
+(function () {
+	var KEY = 'theme';
+	var root = document.documentElement;
+	function read() {
+		try { return localStorage.getItem(KEY) || 'system'; }
+		catch (e) { return 'system'; }
+	}
+	function write(mode) {
+		try { localStorage.setItem(KEY, mode); }
+		catch (e) { /* private window, blocked storage, preview capture: ignore */ }
+	}
+	function apply(mode) {
+		if (mode === 'system') root.removeAttribute('data-theme');
+		else root.setAttribute('data-theme', mode);
+		document.querySelectorAll('[data-set-theme]').forEach(function (b) {
+			b.setAttribute('aria-pressed', String(b.dataset.setTheme === mode));
+		});
+	}
+	apply(read());
+	document.addEventListener('DOMContentLoaded', function () {
+		apply(read());
+		document.querySelectorAll('[data-set-theme]').forEach(function (b) {
+			b.addEventListener('click', function () {
+				write(b.dataset.setTheme);
+				apply(b.dataset.setTheme);
+			});
+		});
+	});
+})();
+</script>
 <div class="layout">
 	<nav>
 		<a href="#overview">Overview</a>
@@ -310,15 +435,28 @@ li.oos { text-decoration: line-through; color: var(--muted); }
 	</nav>
 	<main>
 		<header class="page">
-			<h1 id="pageTitle">Historia Foundation</h1>
-			<div class="meta" id="meta"></div>
+			<div>
+				<h1 id="pageTitle">Historia Foundation</h1>
+				<div class="meta" id="meta"></div>
+			</div>
+			<div class="theme-toggle" role="group" aria-label="Colour theme">
+				<button type="button" data-set-theme="light"  aria-pressed="false">☀</button>
+				<button type="button" data-set-theme="system" aria-pressed="true">◐</button>
+				<button type="button" data-set-theme="dark"   aria-pressed="false">☾</button>
+			</div>
 		</header>
 		<div id="validation"></div>
 
 		<section id="overview">
-			<h2><span class="dot"></span>Overview</h2>
-			<div class="card card--hero"><div class="kpi" id="hero"></div></div>
-			<div class="grid" id="milestone-cards"></div>
+			<details class="overview" open>
+				<summary>
+					<h2><span class="dot"></span>Overview</h2>
+					<span class="headline" id="headline"></span>
+				</summary>
+				<div class="body">
+					<div id="milestone-cards"></div>
+				</div>
+			</details>
 		</section>
 
 		<section id="milestones">
@@ -339,12 +477,17 @@ li.oos { text-decoration: line-through; color: var(--muted); }
 			</div>
 			<div class="legend">
 				<span class="key"><i class="sw" style="background:var(--color-todo-bg);border-color:var(--color-todo)"></i>todo</span>
+				<span class="key"><i class="sw" style="background:var(--color-in-progress-bg);border-color:var(--color-in-progress)"></i>in progress ▸</span>
 				<span class="key"><i class="sw" style="background:var(--color-blocked-bg);border-color:var(--color-blocked);border-width:2px"></i>blocked</span>
 				<span class="key"><i class="sw" style="background:var(--color-paused-bg);border-color:var(--color-paused);border-style:dashed"></i>paused</span>
 				<span class="key"><i class="sw" style="background:var(--color-deferred-bg);border-color:var(--color-deferred);border-style:dashed"></i>deferred</span>
 				<span class="key"><i class="sw" style="background:var(--color-out-of-scope-bg);border-color:var(--color-out-of-scope);border-style:dotted"></i>out of scope</span>
 				<span class="key key--mile"><i class="sw" style="background:var(--color-milestone-bg);border-color:var(--color-milestone)"></i>milestone</span>
 				<span class="key key--gate"><i class="sw" style="background:var(--color-gate-bg);border-color:var(--color-gate);border-style:dashed"></i>external gate</span>
+				<span id="tier-keys" hidden>
+					<span class="key"><i class="sw" style="background:var(--color-tier-underway-bg);border-color:var(--color-tier-underway)"></i>tier underway</span>
+					<span class="key"><i class="sw" style="background:var(--color-tier-deferred-bg);border-color:var(--color-tier-deferred);border-style:dashed"></i>tier deferred</span>
+				</span>
 				<span class="keynote">tasks flow into the milestone node that they complete; done tasks and fully-done milestones are hidden</span>
 			</div>
 		</section>
@@ -356,7 +499,7 @@ li.oos { text-decoration: line-through; color: var(--muted); }
 	</main>
 </div>
 
-<script id="roadmap-data" type="application/json">{"project": "Historia", "phase": "Historia Foundation", "generated": "2026-08-25T19:59:47", "stats": {"phase": "Historia Foundation", "total": 17, "byStatus": {"done": 0, "todo": 8, "blocked": 9, "paused": 0, "deferred": 0, "out_of_scope": 0}, "invalid": [], "donePct": 0, "milestonesTotal": 5, "milestonesDone": 0, "milestones": [{"id": "M1", "name": "Map Fidelity", "total": 5, "done": 0, "byStatus": {"done": 0, "todo": 2, "blocked": 3, "paused": 0, "deferred": 0, "out_of_scope": 0}, "donePct": 0, "state": "blocked"}, {"id": "M2", "name": "Content", "total": 3, "done": 0, "byStatus": {"done": 0, "todo": 2, "blocked": 1, "paused": 0, "deferred": 0, "out_of_scope": 0}, "donePct": 0, "state": "blocked"}, {"id": "M3", "name": "UX Polish", "total": 4, "done": 0, "byStatus": {"done": 0, "todo": 1, "blocked": 3, "paused": 0, "deferred": 0, "out_of_scope": 0}, "donePct": 0, "state": "blocked"}, {"id": "M4", "name": "Deploy", "total": 3, "done": 0, "byStatus": {"done": 0, "todo": 3, "blocked": 0, "paused": 0, "deferred": 0, "out_of_scope": 0}, "donePct": 0, "state": "todo"}, {"id": "M5", "name": "Hardening", "total": 2, "done": 0, "byStatus": {"done": 0, "todo": 0, "blocked": 2, "paused": 0, "deferred": 0, "out_of_scope": 0}, "donePct": 0, "state": "blocked"}]}, "tasks": [{"id": "1MF.0", "description": "Establish one fully correct reference kingdom (regions dissolved correctly + complete data) to validate the region-to-kingdom pipeline end to end", "status": "todo", "dependsOn": [], "milestone": "M1", "notes": "", "assignee": ""}, {"id": "1MF.1", "description": "Fix remaining region boundary gaps and mismatches across the topology using the reference kingdom as the validated pattern", "status": "blocked", "dependsOn": ["1MF.0"], "milestone": "M1", "notes": "", "assignee": ""}, {"id": "1MF.2", "description": "Refine atlas-style colours and coastline rendering for visual fidelity", "status": "todo", "dependsOn": [], "milestone": "M1", "notes": "", "assignee": ""}, {"id": "1MF.3", "description": "Pass over kingdom fill and border treatment once boundaries are correct", "status": "blocked", "dependsOn": ["1MF.1"], "milestone": "M1", "notes": "", "assignee": ""}, {"id": "1MF.4", "description": "Spike: decide how to represent kingdoms/borders for periods where the historical record only supports incomplete or contested boundaries (e.g. fuzzy-edge styling, confidence bands, omission vs approximation)", "status": "blocked", "dependsOn": ["1MF.0", "1MF.1"], "milestone": "M1", "notes": "Research/design spike, not implementation; output is a decision the rest of M1/M2 border work can follow", "assignee": ""}, {"id": "2CN.1", "description": "Expand events.ts (currently 13 events across 300-1066 CE) with a fuller set of key historical events", "status": "todo", "dependsOn": [], "milestone": "M2", "notes": "", "assignee": ""}, {"id": "2CN.2", "description": "Expand artifacts.ts with more artifacts/sites across all four eras", "status": "todo", "dependsOn": [], "milestone": "M2", "notes": "", "assignee": ""}, {"id": "2CN.3", "description": "Fill remaining kingdoms data gaps per era using the reference kingdom's region-assignment pattern", "status": "blocked", "dependsOn": ["1MF.0", "1MF.4"], "milestone": "M2", "notes": "", "assignee": ""}, {"id": "3UX.1", "description": "Tune timeline scrub/playback pacing and smoothness against the expanded event set", "status": "blocked", "dependsOn": ["2CN.1"], "milestone": "M3", "notes": "", "assignee": ""}, {"id": "3UX.2", "description": "Pass over sidebar/panel interaction (KingdomPanel, ArtifactPanel, lists) against realistic data density", "status": "blocked", "dependsOn": ["2CN.2", "2CN.3"], "milestone": "M3", "notes": "", "assignee": ""}, {"id": "3UX.3", "description": "Refine tooltip and legend styling and behaviour", "status": "todo", "dependsOn": [], "milestone": "M3", "notes": "", "assignee": ""}, {"id": "3UX.4", "description": "Evaluate map interaction (zoom/pan/click/hover/period transitions) against the reference kingdom's real region geometry", "status": "blocked", "dependsOn": ["1MF.0"], "milestone": "M3", "notes": "", "assignee": ""}, {"id": "4DP.1", "description": "Pick deploy target (Vercel or GitHub Pages) and confirm it suits SvelteKit + static topology data", "status": "todo", "dependsOn": [], "milestone": "M4", "notes": "", "assignee": ""}, {"id": "4DP.2", "description": "Configure the matching SvelteKit adapter for the chosen target", "status": "todo", "dependsOn": [], "milestone": "M4", "notes": "", "assignee": ""}, {"id": "4DP.3", "description": "Verify the build passes (svelte-kit sync + svelte-check clean), then deploy and confirm the live URL renders the map", "status": "todo", "dependsOn": [], "milestone": "M4", "notes": "", "assignee": ""}, {"id": "5HD.1", "description": "Run svelte-check clean across the full app once M1-M3 have landed", "status": "blocked", "dependsOn": ["M1", "M2", "M3"], "milestone": "M5", "notes": "", "assignee": ""}, {"id": "5HD.2", "description": "Manual QA pass scrubbing the full timeline across all four eras, checking map, panels and data consistency", "status": "blocked", "dependsOn": ["5HD.1"], "milestone": "M5", "notes": "", "assignee": ""}], "ready": {"phase": "Historia Foundation", "candidates": [{"id": "1MF.0", "description": "Establish one fully correct reference kingdom (regions dissolved correctly + complete data) to validate the region-to-kingdom pipeline end to end", "milestone": "M1", "milestoneName": "Map Fidelity", "milestoneDonePct": 0, "directDependents": 5, "transitiveUnblocks": 8, "isMilestoneSink": false, "notes": "", "assignee": ""}, {"id": "2CN.1", "description": "Expand events.ts (currently 13 events across 300-1066 CE) with a fuller set of key historical events", "milestone": "M2", "milestoneName": "Content", "milestoneDonePct": 0, "directDependents": 2, "transitiveUnblocks": 3, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "2CN.2", "description": "Expand artifacts.ts with more artifacts/sites across all four eras", "milestone": "M2", "milestoneName": "Content", "milestoneDonePct": 0, "directDependents": 2, "transitiveUnblocks": 3, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "1MF.2", "description": "Refine atlas-style colours and coastline rendering for visual fidelity", "milestone": "M1", "milestoneName": "Map Fidelity", "milestoneDonePct": 0, "directDependents": 1, "transitiveUnblocks": 2, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "3UX.3", "description": "Refine tooltip and legend styling and behaviour", "milestone": "M3", "milestoneName": "UX Polish", "milestoneDonePct": 0, "directDependents": 1, "transitiveUnblocks": 2, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "4DP.1", "description": "Pick deploy target (Vercel or GitHub Pages) and confirm it suits SvelteKit + static topology data", "milestone": "M4", "milestoneName": "Deploy", "milestoneDonePct": 0, "directDependents": 0, "transitiveUnblocks": 0, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "4DP.2", "description": "Configure the matching SvelteKit adapter for the chosen target", "milestone": "M4", "milestoneName": "Deploy", "milestoneDonePct": 0, "directDependents": 0, "transitiveUnblocks": 0, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "4DP.3", "description": "Verify the build passes (svelte-kit sync + svelte-check clean), then deploy and confirm the live URL renders the map", "milestone": "M4", "milestoneName": "Deploy", "milestoneDonePct": 0, "directDependents": 0, "transitiveUnblocks": 0, "isMilestoneSink": true, "notes": "", "assignee": ""}]}, "mermaid": "graph TD\n\tclassDef todo fill:var(--color-todo-bg),stroke:var(--color-todo),color:var(--color-todo)\n\tclassDef blocked fill:var(--color-blocked-bg),stroke:var(--color-blocked),color:var(--color-blocked),stroke-width:2px\n\tclassDef paused fill:var(--color-paused-bg),stroke:var(--color-paused),color:var(--color-paused),stroke-dasharray:4 3\n\tclassDef deferred fill:var(--color-deferred-bg),stroke:var(--color-deferred),color:var(--color-deferred),stroke-dasharray:2 4,font-style:italic\n\tclassDef done fill:var(--color-done-bg),stroke:var(--color-done),color:var(--color-done)\n\tclassDef outOfScope fill:var(--color-out-of-scope-bg),stroke:var(--color-out-of-scope),color:var(--color-out-of-scope),stroke-dasharray:2 2\n\tclassDef mile fill:var(--color-milestone-bg),stroke:var(--color-milestone),color:var(--color-milestone),font-weight:bold\n\tclassDef external fill:var(--color-gate-bg),stroke:var(--color-gate),color:var(--color-gate),stroke-dasharray:4 3,font-style:italic\n\t1MF.0[\"1MF.0: Establish one fully correct reference ki…\"]\n\t1MF.1[\"1MF.1: Fix remaining region boundary gaps and m…\"]\n\t1MF.2[\"1MF.2: Refine atlas-style colours and coastline…\"]\n\t1MF.3[\"1MF.3: Pass over kingdom fill and border treatm…\"]\n\t1MF.4[\"1MF.4: Spike: decide how to represent kingdoms/…\"]\n\tM1[\"M1: Map Fidelity\"]:::mile\n\t2CN.1[\"2CN.1: Expand events.ts (currently 13 events ac…\"]\n\t2CN.2[\"2CN.2: Expand artifacts.ts with more artifacts/…\"]\n\t2CN.3[\"2CN.3: Fill remaining kingdoms data gaps per er…\"]\n\tM2[\"M2: Content\"]:::mile\n\t3UX.1[\"3UX.1: Tune timeline scrub/playback pacing and…\"]\n\t3UX.2[\"3UX.2: Pass over sidebar/panel interaction (Kin…\"]\n\t3UX.3[\"3UX.3: Refine tooltip and legend styling and be…\"]\n\t3UX.4[\"3UX.4: Evaluate map interaction (zoom/pan/click…\"]\n\tM3[\"M3: UX Polish\"]:::mile\n\t4DP.1[\"4DP.1: Pick deploy target (Vercel or GitHub Pag…\"]\n\t4DP.2[\"4DP.2: Configure the matching SvelteKit adapter…\"]\n\t4DP.3[\"4DP.3: Verify the build passes (svelte-kit sync…\"]\n\tM4[\"M4: Deploy\"]:::mile\n\t5HD.1[\"5HD.1: Run svelte-check clean across the full a…\"]\n\t5HD.2[\"5HD.2: Manual QA pass scrubbing the full timeli…\"]\n\tM5[\"M5: Hardening\"]:::mile\n\t1MF.0 --\u003e 1MF.1\n\t1MF.0 --\u003e 1MF.4\n\t1MF.0 --\u003e 2CN.3\n\t1MF.0 --\u003e 3UX.4\n\t1MF.1 --\u003e 1MF.3\n\t1MF.1 --\u003e 1MF.4\n\t1MF.2 --\u003e M1\n\t1MF.3 --\u003e M1\n\t1MF.4 --\u003e M1\n\t1MF.4 --\u003e 2CN.3\n\tM1 --\u003e 5HD.1\n\t2CN.1 --\u003e M2\n\t2CN.1 --\u003e 3UX.1\n\t2CN.2 --\u003e M2\n\t2CN.2 --\u003e 3UX.2\n\t2CN.3 --\u003e M2\n\t2CN.3 --\u003e 3UX.2\n\tM2 --\u003e 5HD.1\n\t3UX.1 --\u003e M3\n\t3UX.2 --\u003e M3\n\t3UX.3 --\u003e M3\n\t3UX.4 --\u003e M3\n\tM3 --\u003e 5HD.1\n\t4DP.1 --\u003e M4\n\t4DP.2 --\u003e M4\n\t4DP.3 --\u003e M4\n\t5HD.1 --\u003e 5HD.2\n\t5HD.2 --\u003e M5\n\tclass 1MF.0,1MF.2,2CN.1,2CN.2,3UX.3,4DP.1,4DP.2,4DP.3 todo\n\tclass 1MF.1,1MF.3,1MF.4,2CN.3,3UX.1,3UX.2,3UX.4,5HD.1,5HD.2 blocked", "validation": [], "devColours": {}, "depKinds": {"1MF.0": {"kind": "task", "status": "todo"}, "1MF.1": {"kind": "task", "status": "blocked"}, "1MF.2": {"kind": "task", "status": "todo"}, "1MF.3": {"kind": "task", "status": "blocked"}, "1MF.4": {"kind": "task", "status": "blocked"}, "2CN.1": {"kind": "task", "status": "todo"}, "2CN.2": {"kind": "task", "status": "todo"}, "2CN.3": {"kind": "task", "status": "blocked"}, "3UX.1": {"kind": "task", "status": "blocked"}, "3UX.2": {"kind": "task", "status": "blocked"}, "3UX.3": {"kind": "task", "status": "todo"}, "3UX.4": {"kind": "task", "status": "blocked"}, "4DP.1": {"kind": "task", "status": "todo"}, "4DP.2": {"kind": "task", "status": "todo"}, "4DP.3": {"kind": "task", "status": "todo"}, "5HD.1": {"kind": "task", "status": "blocked"}, "5HD.2": {"kind": "task", "status": "blocked"}, "M1": {"kind": "milestone"}, "M2": {"kind": "milestone"}, "M3": {"kind": "milestone"}, "M4": {"kind": "milestone"}, "M5": {"kind": "milestone"}}}</script>
+<script id="roadmap-data" type="application/json">{"project": "Historia", "phase": "Historia Foundation", "generated": "2026-10-02T15:02:08", "stats": {"phase": "Historia Foundation", "total": 20, "inScope": 20, "byStatus": {"done": 0, "todo": 7, "blocked": 13, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "invalid": [], "donePct": 0, "milestonesTotal": 5, "milestonesDone": 0, "milestones": [{"id": "M1", "name": "Map Fidelity", "total": 8, "inScope": 8, "done": 0, "byStatus": {"done": 0, "todo": 1, "blocked": 7, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "todo"}, {"id": "M2", "name": "Content", "total": 3, "inScope": 3, "done": 0, "byStatus": {"done": 0, "todo": 2, "blocked": 1, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "todo"}, {"id": "M3", "name": "UX Polish", "total": 4, "inScope": 4, "done": 0, "byStatus": {"done": 0, "todo": 1, "blocked": 3, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "todo"}, {"id": "M4", "name": "Deploy", "total": 3, "inScope": 3, "done": 0, "byStatus": {"done": 0, "todo": 3, "blocked": 0, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "todo"}, {"id": "M5", "name": "Hardening", "total": 2, "inScope": 2, "done": 0, "byStatus": {"done": 0, "todo": 0, "blocked": 2, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "blocked"}]}, "overview": {"tiers": null, "milestones": [{"id": "M1", "name": "Map Fidelity", "total": 8, "inScope": 8, "done": 0, "byStatus": {"done": 0, "todo": 1, "blocked": 7, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "todo", "tierLabel": "Core", "devs": []}, {"id": "M2", "name": "Content", "total": 3, "inScope": 3, "done": 0, "byStatus": {"done": 0, "todo": 2, "blocked": 1, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "todo", "tierLabel": "Core", "devs": []}, {"id": "M3", "name": "UX Polish", "total": 4, "inScope": 4, "done": 0, "byStatus": {"done": 0, "todo": 1, "blocked": 3, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "todo", "tierLabel": "Core", "devs": []}, {"id": "M4", "name": "Deploy", "total": 3, "inScope": 3, "done": 0, "byStatus": {"done": 0, "todo": 3, "blocked": 0, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "todo", "tierLabel": "Core", "devs": []}, {"id": "M5", "name": "Hardening", "total": 2, "inScope": 2, "done": 0, "byStatus": {"done": 0, "todo": 0, "blocked": 2, "paused": 0, "deferred": 0, "out_of_scope": 0}, "inProgress": 0, "donePct": 0, "tier": 0, "state": "blocked", "tierLabel": "Core", "devs": []}]}, "tasks": [{"id": "1MF.0", "description": "Establish one fully correct reference kingdom (regions dissolved correctly + complete data) to validate the region-to-kingdom pipeline end to end", "status": "todo", "display": "todo", "dependsOn": [], "milestone": "M1", "notes": "", "assignee": "", "started": ""}, {"id": "1MF.1", "description": "Migrate every England kingdom in every period from legacy hand-drawn regions to Domesday hundreds (Brookes 2020), using East Anglia 700 as the pattern; empty knownLegacyDoubleAssignments", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.0"], "milestone": "M1", "notes": "", "assignee": "", "started": ""}, {"id": "1MF.2", "description": "Refine atlas-style colours and coastline rendering for visual fidelity", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.6"], "milestone": "M1", "notes": "", "assignee": "", "started": ""}, {"id": "1MF.3", "description": "Pass over kingdom fill and border treatment once boundaries are correct", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.1", "1MF.6"], "milestone": "M1", "notes": "", "assignee": "", "started": ""}, {"id": "1MF.4", "description": "Spike: decide how to represent kingdoms/borders for periods where the historical record only supports incomplete or contested boundaries (e.g. fuzzy-edge styling, confidence bands, omission vs approximation)", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.0", "1MF.1", "1MF.6"], "milestone": "M1", "notes": "Research/design spike, not implementation; output is a decision the rest of M1/M2 border work can follow", "assignee": "", "started": ""}, {"id": "1MF.5", "description": "Choose open boundary sources for Wales, Scotland and Ireland (no Domesday hundreds there: HCBP or OS 1888 counties, Tailte Éireann) and how to join them to Brookes without seams", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.0"], "milestone": "M1", "notes": "", "assignee": "", "started": ""}, {"id": "1MF.6", "description": "Migrate Wales, Scotland and Ireland kingdoms to the chosen sources; delete the legacy topology and hand-drawn coastline, deriving the coastline from the new sources", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.1", "1MF.5"], "milestone": "M1", "notes": "", "assignee": "", "started": ""}, {"id": "1MF.7", "description": "Investigate the CAMPOP parish dataset licence and other sub-hundred boundary sources; resolve the Isle of Ely / northern fen (Thorney, Whittlesey) split", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.0"], "milestone": "M1", "notes": "East Anglia 700 currently over-claims Thorney and Whittlesey", "assignee": "", "started": ""}, {"id": "2CN.1", "description": "Expand events.ts (currently 13 events across 300-1066 CE) with a fuller set of key historical events", "status": "todo", "display": "todo", "dependsOn": [], "milestone": "M2", "notes": "", "assignee": "", "started": ""}, {"id": "2CN.2", "description": "Expand artifacts.ts with more artifacts/sites across all four eras", "status": "todo", "display": "todo", "dependsOn": [], "milestone": "M2", "notes": "", "assignee": "", "started": ""}, {"id": "2CN.3", "description": "Fill remaining kingdoms data gaps per era using the reference kingdom's region-assignment pattern", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.0", "1MF.4", "1MF.6"], "milestone": "M2", "notes": "", "assignee": "", "started": ""}, {"id": "3UX.1", "description": "Tune timeline scrub/playback pacing and smoothness against the expanded event set", "status": "blocked", "display": "blocked", "dependsOn": ["2CN.1"], "milestone": "M3", "notes": "", "assignee": "", "started": ""}, {"id": "3UX.2", "description": "Pass over sidebar/panel interaction (KingdomPanel, ArtifactPanel, lists) against realistic data density", "status": "blocked", "display": "blocked", "dependsOn": ["2CN.2", "2CN.3"], "milestone": "M3", "notes": "", "assignee": "", "started": ""}, {"id": "3UX.3", "description": "Refine tooltip and legend styling and behaviour", "status": "todo", "display": "todo", "dependsOn": [], "milestone": "M3", "notes": "", "assignee": "", "started": ""}, {"id": "3UX.4", "description": "Evaluate map interaction (zoom/pan/click/hover/period transitions) against the reference kingdom's real region geometry", "status": "blocked", "display": "blocked", "dependsOn": ["1MF.0", "1MF.6"], "milestone": "M3", "notes": "", "assignee": "", "started": ""}, {"id": "4DP.1", "description": "Pick deploy target (Vercel or GitHub Pages) and confirm it suits SvelteKit + static topology data", "status": "todo", "display": "todo", "dependsOn": [], "milestone": "M4", "notes": "", "assignee": "", "started": ""}, {"id": "4DP.2", "description": "Configure the matching SvelteKit adapter for the chosen target", "status": "todo", "display": "todo", "dependsOn": [], "milestone": "M4", "notes": "", "assignee": "", "started": ""}, {"id": "4DP.3", "description": "Verify the build passes (svelte-kit sync + svelte-check clean), then deploy and confirm the live URL renders the map", "status": "todo", "display": "todo", "dependsOn": [], "milestone": "M4", "notes": "", "assignee": "", "started": ""}, {"id": "5HD.1", "description": "Run svelte-check clean across the full app once M1-M3 have landed", "status": "blocked", "display": "blocked", "dependsOn": ["M1", "M2", "M3"], "milestone": "M5", "notes": "", "assignee": "", "started": ""}, {"id": "5HD.2", "description": "Manual QA pass scrubbing the full timeline across all four eras, checking map, panels and data consistency", "status": "blocked", "display": "blocked", "dependsOn": ["5HD.1"], "milestone": "M5", "notes": "", "assignee": "", "started": ""}], "ready": {"phase": "Historia Foundation", "candidates": [{"id": "1MF.0", "description": "Establish one fully correct reference kingdom (regions dissolved correctly + complete data) to validate the region-to-kingdom pipeline end to end", "milestone": "M1", "milestoneName": "Map Fidelity", "tier": 0, "tierLabel": "Core", "status": "todo", "display": "todo", "started": "", "milestoneDonePct": 0, "directDependents": 7, "transitiveUnblocks": 12, "isMilestoneSink": false, "notes": "", "assignee": ""}, {"id": "2CN.1", "description": "Expand events.ts (currently 13 events across 300-1066 CE) with a fuller set of key historical events", "milestone": "M2", "milestoneName": "Content", "tier": 0, "tierLabel": "Core", "status": "todo", "display": "todo", "started": "", "milestoneDonePct": 0, "directDependents": 2, "transitiveUnblocks": 3, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "2CN.2", "description": "Expand artifacts.ts with more artifacts/sites across all four eras", "milestone": "M2", "milestoneName": "Content", "tier": 0, "tierLabel": "Core", "status": "todo", "display": "todo", "started": "", "milestoneDonePct": 0, "directDependents": 2, "transitiveUnblocks": 3, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "3UX.3", "description": "Refine tooltip and legend styling and behaviour", "milestone": "M3", "milestoneName": "UX Polish", "tier": 0, "tierLabel": "Core", "status": "todo", "display": "todo", "started": "", "milestoneDonePct": 0, "directDependents": 1, "transitiveUnblocks": 2, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "4DP.1", "description": "Pick deploy target (Vercel or GitHub Pages) and confirm it suits SvelteKit + static topology data", "milestone": "M4", "milestoneName": "Deploy", "tier": 0, "tierLabel": "Core", "status": "todo", "display": "todo", "started": "", "milestoneDonePct": 0, "directDependents": 0, "transitiveUnblocks": 0, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "4DP.2", "description": "Configure the matching SvelteKit adapter for the chosen target", "milestone": "M4", "milestoneName": "Deploy", "tier": 0, "tierLabel": "Core", "status": "todo", "display": "todo", "started": "", "milestoneDonePct": 0, "directDependents": 0, "transitiveUnblocks": 0, "isMilestoneSink": true, "notes": "", "assignee": ""}, {"id": "4DP.3", "description": "Verify the build passes (svelte-kit sync + svelte-check clean), then deploy and confirm the live URL renders the map", "milestone": "M4", "milestoneName": "Deploy", "tier": 0, "tierLabel": "Core", "status": "todo", "display": "todo", "started": "", "milestoneDonePct": 0, "directDependents": 0, "transitiveUnblocks": 0, "isMilestoneSink": true, "notes": "", "assignee": ""}], "claimed": []}, "mermaid": "graph TD\n\tclassDef todo fill:var(--color-todo-bg),stroke:var(--color-todo),color:var(--color-todo)\n\tclassDef inProgress fill:var(--color-in-progress-bg),stroke:var(--color-in-progress),color:var(--color-in-progress)\n\tclassDef blocked fill:var(--color-blocked-bg),stroke:var(--color-blocked),color:var(--color-blocked),stroke-width:2px\n\tclassDef paused fill:var(--color-paused-bg),stroke:var(--color-paused),color:var(--color-paused),stroke-dasharray:4 3\n\tclassDef deferred fill:var(--color-deferred-bg),stroke:var(--color-deferred),color:var(--color-deferred),stroke-dasharray:2 4,font-style:italic\n\tclassDef done fill:var(--color-done-bg),stroke:var(--color-done),color:var(--color-done)\n\tclassDef outOfScope fill:var(--color-out-of-scope-bg),stroke:var(--color-out-of-scope),color:var(--color-out-of-scope),stroke-dasharray:2 2\n\tclassDef mile fill:var(--color-milestone-bg),stroke:var(--color-milestone),color:var(--color-milestone),font-weight:bold\n\tclassDef external fill:var(--color-gate-bg),stroke:var(--color-gate),color:var(--color-gate),stroke-dasharray:4 3,font-style:italic\n\t1MF.0[\"1MF.0: Establish one fully correct reference ki…\"]\n\t1MF.1[\"1MF.1: Migrate every England kingdom in every p…\"]\n\t1MF.5[\"1MF.5: Choose open boundary sources for Wales,…\"]\n\t1MF.6[\"1MF.6: Migrate Wales, Scotland and Ireland king…\"]\n\t1MF.2[\"1MF.2: Refine atlas-style colours and coastline…\"]\n\t1MF.3[\"1MF.3: Pass over kingdom fill and border treatm…\"]\n\t1MF.4[\"1MF.4: Spike: decide how to represent kingdoms/…\"]\n\t1MF.7[\"1MF.7: Investigate the CAMPOP parish dataset li…\"]\n\tM1[\"M1: Map Fidelity\"]:::mile\n\t2CN.1[\"2CN.1: Expand events.ts (currently 13 events ac…\"]\n\t2CN.2[\"2CN.2: Expand artifacts.ts with more artifacts/…\"]\n\t2CN.3[\"2CN.3: Fill remaining kingdoms data gaps per er…\"]\n\tM2[\"M2: Content\"]:::mile\n\t3UX.1[\"3UX.1: Tune timeline scrub/playback pacing and…\"]\n\t3UX.2[\"3UX.2: Pass over sidebar/panel interaction (Kin…\"]\n\t3UX.3[\"3UX.3: Refine tooltip and legend styling and be…\"]\n\t3UX.4[\"3UX.4: Evaluate map interaction (zoom/pan/click…\"]\n\tM3[\"M3: UX Polish\"]:::mile\n\t4DP.1[\"4DP.1: Pick deploy target (Vercel or GitHub Pag…\"]\n\t4DP.2[\"4DP.2: Configure the matching SvelteKit adapter…\"]\n\t4DP.3[\"4DP.3: Verify the build passes (svelte-kit sync…\"]\n\tM4[\"M4: Deploy\"]:::mile\n\t5HD.1[\"5HD.1: Run svelte-check clean across the full a…\"]\n\t5HD.2[\"5HD.2: Manual QA pass scrubbing the full timeli…\"]\n\tM5[\"M5: Hardening\"]:::mile\n\t1MF.0 --\u003e 1MF.1\n\t1MF.0 --\u003e 1MF.5\n\t1MF.0 --\u003e 1MF.4\n\t1MF.0 --\u003e 1MF.7\n\t1MF.0 --\u003e 2CN.3\n\t1MF.0 --\u003e 3UX.4\n\t1MF.1 --\u003e 1MF.6\n\t1MF.1 --\u003e 1MF.3\n\t1MF.1 --\u003e 1MF.4\n\t1MF.5 --\u003e 1MF.6\n\t1MF.6 --\u003e 1MF.2\n\t1MF.6 --\u003e 1MF.3\n\t1MF.6 --\u003e 1MF.4\n\t1MF.6 --\u003e 2CN.3\n\t1MF.6 --\u003e 3UX.4\n\t1MF.2 --\u003e M1\n\t1MF.3 --\u003e M1\n\t1MF.4 --\u003e M1\n\t1MF.4 --\u003e 2CN.3\n\t1MF.7 --\u003e M1\n\tM1 --\u003e 5HD.1\n\t2CN.1 --\u003e M2\n\t2CN.1 --\u003e 3UX.1\n\t2CN.2 --\u003e M2\n\t2CN.2 --\u003e 3UX.2\n\t2CN.3 --\u003e M2\n\t2CN.3 --\u003e 3UX.2\n\tM2 --\u003e 5HD.1\n\t3UX.1 --\u003e M3\n\t3UX.2 --\u003e M3\n\t3UX.3 --\u003e M3\n\t3UX.4 --\u003e M3\n\tM3 --\u003e 5HD.1\n\t4DP.1 --\u003e M4\n\t4DP.2 --\u003e M4\n\t4DP.3 --\u003e M4\n\t5HD.1 --\u003e 5HD.2\n\t5HD.2 --\u003e M5\n\tclass 1MF.0,2CN.1,2CN.2,3UX.3,4DP.1,4DP.2,4DP.3 todo\n\tclass 1MF.1,1MF.2,1MF.3,1MF.4,1MF.5,1MF.6,1MF.7,2CN.3,3UX.1,3UX.2,3UX.4,5HD.1,5HD.2 blocked", "graphDirection": "TD", "validation": [], "devColours": {}, "depKinds": {"1MF.0": {"kind": "task", "status": "todo", "display": "todo"}, "1MF.1": {"kind": "task", "status": "blocked", "display": "blocked"}, "1MF.2": {"kind": "task", "status": "blocked", "display": "blocked"}, "1MF.3": {"kind": "task", "status": "blocked", "display": "blocked"}, "1MF.4": {"kind": "task", "status": "blocked", "display": "blocked"}, "1MF.5": {"kind": "task", "status": "blocked", "display": "blocked"}, "1MF.6": {"kind": "task", "status": "blocked", "display": "blocked"}, "1MF.7": {"kind": "task", "status": "blocked", "display": "blocked"}, "2CN.1": {"kind": "task", "status": "todo", "display": "todo"}, "2CN.2": {"kind": "task", "status": "todo", "display": "todo"}, "2CN.3": {"kind": "task", "status": "blocked", "display": "blocked"}, "3UX.1": {"kind": "task", "status": "blocked", "display": "blocked"}, "3UX.2": {"kind": "task", "status": "blocked", "display": "blocked"}, "3UX.3": {"kind": "task", "status": "todo", "display": "todo"}, "3UX.4": {"kind": "task", "status": "blocked", "display": "blocked"}, "4DP.1": {"kind": "task", "status": "todo", "display": "todo"}, "4DP.2": {"kind": "task", "status": "todo", "display": "todo"}, "4DP.3": {"kind": "task", "status": "todo", "display": "todo"}, "5HD.1": {"kind": "task", "status": "blocked", "display": "blocked"}, "5HD.2": {"kind": "task", "status": "blocked", "display": "blocked"}, "M1": {"kind": "milestone"}, "M2": {"kind": "milestone"}, "M3": {"kind": "milestone"}, "M4": {"kind": "milestone"}, "M5": {"kind": "milestone"}}}</script>
 <script type="module">
 import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 
@@ -380,19 +523,22 @@ if (DATA.validation && DATA.validation.length) {
 /* Milestone-level state (distinct from task status): computed server-side by
    roadmap.py's milestone_state() and carried as m.state, so the artefact
    never re-derives it and cannot disagree with the CLI's own stats/render
-   paths. States: deferred, done, inProgress, todo, blocked, paused. */
+   paths. Milestone states: empty, done, deferred, inProgress, blocked, todo
+   (see roadmap-conventions.md; `empty` is a flagged bug, not a legitimate
+   state, and borrows the blocked/red colour). The same map also colours
+   dependency chips by a *task's* display status, which still uses `paused`
+   and adds in_progress (a claimed task) and out_of_scope: task status and
+   milestone state are different vocabularies sharing one colour table. */
 const STATE_VAR = {
-	deferred: "deferred", done: "done", inProgress: "in-progress",
-	todo: "todo", blocked: "blocked", paused: "paused",
+	empty: "blocked", done: "done", deferred: "deferred",
+	inProgress: "in-progress", blocked: "blocked", todo: "todo",
+	paused: "paused", in_progress: "in-progress", out_of_scope: "out-of-scope",
 };
-const STATE_RANK = { inProgress: 0, todo: 1, done: 2, blocked: 3, paused: 4, deferred: 5 };
-/* Overview cards and Milestones details share this one ordering, computed
-   once here rather than in Python, since build_stats' milestones[] stays in
-   roadmap order for other consumers (_human_stats, next-task-*). */
-const sortedMilestones = [...DATA.stats.milestones].sort((a, b) =>
-	(STATE_RANK[a.state] - STATE_RANK[b.state])
-	|| (b.donePct - a.donePct)
-	|| a.name.localeCompare(b.name));
+/* Overview cards and Milestones details both render DATA.overview.milestones
+   in the order roadmap.py's overview_layout() already sorted (see
+   roadmap-conventions.md's milestone sort rules): partially-done first,
+   then tier, then donePct, then milestone id. The artefact never re-sorts. */
+const sortedMilestones = DATA.overview.milestones;
 
 /* A dev-chip helper: colour + label for an assignee, empty string when unset. */
 const devChip = assignee => {
@@ -406,45 +552,67 @@ const devChip = assignee => {
 const depChip = id => {
 	const k = DATA.depKinds?.[id];
 	if (!k) return `<span class="chip">${esc(id)}</span>`;
-	const varName = k.kind === "task" ? STATE_VAR[k.status] ?? "todo"
+	const varName = k.kind === "task" ? STATE_VAR[k.display ?? k.status] ?? "todo"
 		: k.kind === "milestone" ? "milestone" : "gate";
 	return `<span class="chip" style="--chip-fg:var(--color-${varName});--chip-bg:var(--color-${varName}-bg)">${esc(id)}</span>`;
 };
 
-/* Section 1 — Overview */
+/* Section 1: Overview. Title Case throughout the headline bar; the
+   section itself is an open-by-default <details> (see the overview.body
+   CSS), and the headline is the only thing left visible once collapsed. */
 const st = DATA.stats;
-document.getElementById("hero").innerHTML =
-	`${st.byStatus.done}/${st.total} tasks<small>${st.donePct}% complete</small>` +
-	`<small>${st.milestonesDone}/${st.milestonesTotal} milestones</small>`;
+/* Every done/total readout counts in-scope tasks only (inScope, computed by
+   roadmap.py's build_stats()): an out_of_scope task is struck from play, so
+   it is neither done nor outstanding. One readout shape serves the project
+   headline and each tier's own. */
+const readout = s =>
+	`${s.done}/${s.inScope} Tasks · ${s.donePct}% Complete · ` +
+	`${s.milestonesDone}/${s.milestonesTotal} Milestones`;
+document.getElementById("headline").textContent =
+	readout({ ...st, done: st.byStatus.done });
 
-document.getElementById("milestone-cards").innerHTML = sortedMilestones.map(m => `
+/* A milestone's own count: "No tasks" for an empty one (a flagged bug),
+   "Out of scope" when every task it holds was struck, else done/inScope. */
+const milestoneCount = (m, suffix = "") =>
+	m.state === "empty" ? "No tasks"
+	: !m.inScope ? "Out of scope"
+	: `${m.done}/${m.inScope}${suffix}`;
+
+const milestoneCard = m => `
 	<div class="card mini" style="--m-colour:var(--color-${STATE_VAR[m.state]})">
 		<h3>${esc(m.id)}: ${esc(m.name)}</h3>
-		<span class="count">${m.done}/${m.total} done · ${m.donePct}%</span>
+		<span class="count">${milestoneCount(m, ` done · ${m.donePct}%`)}</span>
 		<div class="progress-bar"><div class="progress-fill"
 			style="width:${m.donePct}%;background:var(--color-${STATE_VAR[m.state]})"></div></div>
-	</div>`).join("");
+	</div>`;
 
-/* Section 2 — Milestones. Groups lead with actionable work; milestones
-   themselves follow the same order as the Overview cards above (A3), so a
-   reader scanning top-to-bottom sees the same priority twice, not two
-   different orderings of the same data. */
+/* Section 2 groups lead with actionable work; milestones themselves follow
+   DATA.overview's own sort/tier-group order (roadmap.py's overview_layout,
+   see roadmap-conventions.md), so a reader scanning top-to-bottom sees the
+   same priority twice across Overview and Milestones, not two different
+   orderings of the same data; Overview's tier grouping mirrors it too. */
+/* The fourth field marks a group that renders as its own closed <details>:
+   blocked, done and out-of-scope tasks are nothing a reader can pick up, so
+   they fold away behind a heading that carries their count. */
 const GROUPS = [
-	["todo",        "○ To Do",        "todo"],
-	["blocked",     "✗ Blocked",      "blocked"],
-	["paused",      "⏸ Paused",       "paused"],
-	["deferred",    "⤓ Deferred",     "deferred"],
-	["done",        "✓ Done",         "done"],
-	["out_of_scope","⊘ Out of Scope", "out-of-scope"],
+	["in_progress", "▸ In Progress",  "in-progress",  false],
+	["todo",        "○ To Do",        "todo",         false],
+	["blocked",     "✗ Blocked",      "blocked",      true],
+	["paused",      "⏸ Paused",       "paused",       false],
+	["deferred",    "⤓ Deferred",     "deferred",     false],
+	["done",        "✓ Done",         "done",         true],
+	["out_of_scope","⊘ Out of Scope", "out-of-scope", true],
 ];
-const readyIds = new Set(DATA.ready.candidates.map(c => c.id));
 const tasksByMilestone = {};
 for (const t of DATA.tasks) (tasksByMilestone[t.milestone] ??= []).push(t);
 
-document.getElementById("milestone-details").innerHTML = sortedMilestones.map(m => {
+const devChips = m => m.devs?.length
+	? `<span class="devs">${m.devs.map(devChip).join("")}</span>` : "";
+
+const milestoneDetails = m => {
 	const tasks = tasksByMilestone[m.id] || [];
-	const groups = GROUPS.map(([status, label, varName]) => {
-		const members = tasks.filter(t => t.status === status);
+	const groups = GROUPS.map(([status, label, varName, collapsed]) => {
+		const members = tasks.filter(t => (t.display ?? t.status) === status);
 		if (!members.length) return "";
 		const items = members.map(t => {
 			const deps = (t.dependsOn && t.dependsOn.length)
@@ -453,18 +621,54 @@ document.getElementById("milestone-details").innerHTML = sortedMilestones.map(m 
 				<span class="tid">${esc(t.id)}</span>${devChip(t.assignee)}
 				<span class="tasktext">${esc(t.description)}</span>${deps}</li>`;
 		}).join("");
+		if (collapsed) return `<details class="group statusgroup">
+			<summary><span class="arrow">▸</span><h4 style="color:var(--color-${varName})">${label} (${members.length})</h4></summary>
+			<ul>${items}</ul></details>`;
 		return `<div class="group">
 			<h4 style="color:var(--color-${varName})">${label}</h4><ul>${items}</ul></div>`;
 	}).join("");
 	// All milestones render collapsed; the reader chooses what to expand
 	return `<details class="milestone" style="--m-colour:var(--color-${STATE_VAR[m.state]})">
 		<summary><span class="mid">${esc(m.id)}</span>${esc(m.name)}
-			<span class="count">${m.done}/${m.total}</span></summary>
+			${devChips(m)}
+			<span class="count">${milestoneCount(m)}</span></summary>
 		<div class="body">${groups || "<p class='depnote'>No tasks.</p>"}</div>
 	</details>`;
-}).join("");
+};
+
+const milestonesById = Object.fromEntries(DATA.overview.milestones.map(m => [m.id, m]));
+
+if (DATA.overview.tiers) {
+	// Tiered phase: one <details class="tier"> per tier, expanded flag and
+	// milestone membership/order both computed server-side (overview_layout).
+	// Overview's tier header carries the tier's own readout (g.stats), the
+	// per-tier counterpart of the headline; Milestones' keeps the bare name.
+	document.getElementById("milestone-cards").innerHTML = DATA.overview.tiers.map(g => `
+		<details class="tier"${g.expanded ? " open" : ""}>
+			<summary><span class="arrow">▸</span><h3>${esc(g.tierLabel)}</h3>
+				<span class="readout">${esc(readout(g.stats))}</span></summary>
+			<div class="grid">${g.milestoneIds.map(id => milestoneCard(milestonesById[id])).join("")}</div>
+		</details>`).join("");
+	document.getElementById("milestone-details").innerHTML = DATA.overview.tiers.map(g => `
+		<details class="tier"${g.expanded ? " open" : ""}>
+			<summary><span class="arrow">▸</span><h3>${esc(g.tierLabel)}</h3></summary>
+			<div>${g.milestoneIds.map(id => milestoneDetails(milestonesById[id])).join("")}</div>
+		</details>`).join("");
+} else {
+	// No tiered milestones: flat, unwrapped list, no tier markup at all.
+	// milestone-cards still needs its own grid wrapper now that the static
+	// container is plain (the tiered branch above puts a grid inside each
+	// tier <details> instead of on the shared outer container).
+	document.getElementById("milestone-cards").innerHTML =
+		`<div class="grid">${sortedMilestones.map(milestoneCard).join("")}</div>`;
+	document.getElementById("milestone-details").innerHTML = sortedMilestones.map(milestoneDetails).join("");
+}
 
 /* Section 3 — Dependency graph */
+/* A tiered phase draws each tier as its own subgraph (roadmap.py's
+   mermaid_source()), so its legend gains the two tier backgrounds; an
+   untiered phase has no subgraph and keeps the keys hidden. */
+document.getElementById("tier-keys").hidden = !DATA.overview.tiers;
 /* ELK lays out this dense a graph with far fewer crossings than the default
    dagre engine; if its module fails to load, dagre still renders. */
 let layout = "dagre";
@@ -473,20 +677,23 @@ try {
 	mermaid.registerLayoutLoaders(elkLayouts);
 	layout = "elk";
 } catch { /* CDN unreachable — fall back */ }
-mermaid.initialize({
-	startOnLoad: false,
-	theme: "base",
-	layout,
-	themeVariables: {
-		fontSize: "16px",
-		fontFamily: '"IBM Plex Mono", monospace',
-	},
-});
 /* Mermaid 11's classDef parser rejects var(--x), so the semantic variables
    are resolved to concrete colours before rendering, and the graph re-renders
    when the colour scheme flips so it keeps tracking the page theme. A render
    failure is contained to the diagram shell — the sections after it must
-   still populate. */
+   still populate.
+
+   Node fills/strokes come entirely from the classDefs above (resolved via
+   the var() replace below), but mermaid's "base" theme still supplies its
+   own defaults for everything a classDef doesn't touch — edge stroke,
+   arrowhead fill, edge-label background. Those defaults assume a white
+   canvas, so left alone they render near-black on the dark surface. Fixing
+   that means passing --diagram-line/--diagram-edge-label-bg/--diagram-text
+   through as themeVariables — and critically, mermaid.initialize() must be
+   called again on every render (not once at module load) reading the
+   *currently resolved* values, or a colour-scheme flip silently keeps the
+   load-time edge colours and the explicit data-theme toggle below never
+   takes effect at all (matchMedia doesn't fire for it). */
 const wrap = document.getElementById("wrap");
 const shell = document.getElementById("shell");
 const diagram = document.getElementById("diagram");
@@ -495,8 +702,21 @@ let scale = 1, tx = 0, ty = 0;
 const apply = () => { if (svgEl) svgEl.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; };
 const renderGraph = async () => {
 	const rootStyle = getComputedStyle(document.documentElement);
-	const src = DATA.mermaid.replace(/var\((--[\w-]+)\)/g,
-		(_, name) => rootStyle.getPropertyValue(name).trim() || "#888888");
+	const cssVar = name => rootStyle.getPropertyValue(name).trim() || "#888888";
+	mermaid.initialize({
+		startOnLoad: false,
+		theme: "base",
+		layout,
+		themeVariables: {
+			fontSize: "16px",
+			fontFamily: '"IBM Plex Mono", monospace',
+			background: cssVar("--surface"),
+			lineColor: cssVar("--diagram-line"),
+			edgeLabelBackground: cssVar("--diagram-edge-label-bg"),
+			textColor: cssVar("--diagram-text"),
+		},
+	});
+	const src = DATA.mermaid.replace(/var\((--[\w-]+)\)/g, (_, name) => cssVar(name));
 	try {
 		const { svg } = await mermaid.render("roadmap-graph", src);
 		diagram.innerHTML = svg;
@@ -511,6 +731,12 @@ const renderGraph = async () => {
 };
 await renderGraph();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderGraph);
+/* Covers the explicit data-theme toggle (no UI ships today, but the
+   three-state contract says a future one must just work — see the CSS
+   comment above :root[data-theme="dark"]). matchMedia only fires for the OS
+   preference, so the attribute needs its own watcher. */
+new MutationObserver(renderGraph).observe(document.documentElement,
+	{ attributes: true, attributeFilter: ["data-theme"] });
 
 /* Zoom/pan: buttons, ctrl+wheel, drag; expand toggles a fixed overlay */
 const zoom = f => { scale = Math.min(4, Math.max(0.25, scale * f)); apply(); };
@@ -545,7 +771,7 @@ const candidateLi = c => `
 		<span class="signal">unblocks ${c.transitiveUnblocks}${c.isMilestoneSink ? " · completes milestone" : ""}</span>
 	</li>`;
 const readyAssignees = new Set(DATA.ready.candidates.map(c => c.assignee).filter(Boolean));
-document.getElementById("ready").innerHTML = !DATA.ready.candidates.length
+const readyHtml = !DATA.ready.candidates.length
 	? "<li>No unblocked tasks: clear a blocker or a gate.</li>"
 	: readyAssignees.size > 1
 	? [...readyAssignees].sort().map(dev => `
@@ -557,6 +783,22 @@ document.getElementById("ready").innerHTML = !DATA.ready.candidates.length
 				<ul style="list-style:none;margin:0;padding:0">${DATA.ready.candidates.filter(c => !c.assignee).map(candidateLi).join("")}</ul>
 			</li>` : "")
 	: DATA.ready.candidates.map(candidateLi).join("");
+/* Claims in play lead, since someone is already on them; the ready set then
+   gets its own heading so the two lists never read as one. A parked claim
+   (paused/deferred wins over a claim) stays in its Milestones group. */
+const claimLi = c => `
+	<li>
+		<span class="tid">${esc(c.id)}</span>${devChip(c.assignee)}
+		<span class="tasktext">${esc(c.description)}</span>
+		<span class="signal">since ${esc(c.started)}${c.status === "todo" ? "" : ` · ${esc(c.status)}`}</span>
+	</li>`;
+const claimed = (DATA.ready.claimed ?? []).filter(c => c.display === "in_progress");
+document.getElementById("ready").innerHTML = claimed.length
+	? `<li class="nextup-devgroup"><h4 style="color:var(--color-in-progress)">▸ In progress</h4>
+		<ul style="list-style:none;margin:0;padding:0">${claimed.map(claimLi).join("")}</ul></li>
+		<li class="nextup-devgroup"><h4>Ready</h4>
+		<ul style="list-style:none;margin:0;padding:0">${readyHtml}</ul></li>`
+	: readyHtml;
 
 /* Nav highlight */
 const links = [...document.querySelectorAll("nav a")];

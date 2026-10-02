@@ -1,18 +1,18 @@
 # Historia: Historia Foundation Roadmap Overview
 
-**17 tasks across 5 milestones.** Files: `.claude/roadmaps.json` (machine-readable), `docs/roadmaps/HISTORIA_FOUNDATION.md` (full task list with Mermaid dependency diagram).
+**20 tasks across 5 milestones.** Files: `.claude/roadmaps.json` (machine-readable), `docs/roadmaps/HISTORIA_FOUNDATION.md` (full task list with Mermaid dependency diagram).
 
 ---
 
 ## What we're building
 
-Historia is an interactive map of Britain from 300 to 1066 CE, tracking kingdoms, events and artefacts from the end of Roman rule through the Norman Conquest. The renderer was recently migrated from a hand-rolled D3 SVG map to MapLibre GL over real TopoJSON boundary data, with kingdoms now defined by region IDs dissolved into polygons rather than fixed radii on a stylised map. This phase, Historia Foundation, takes that migration from "wired up" to "trustworthy and complete": correct region boundaries, real historical content across all four eras, polished interaction, and a live deployment.
+Historia is an interactive map of Britain from 300 to 1066 CE, tracking kingdoms, events and artefacts from the end of Roman rule through the Norman Conquest. The renderer was recently migrated from a hand-rolled D3 SVG map to MapLibre GL over TopoJSON boundary data (hand-drawn at first; being replaced by Domesday hundreds and other open sources), with kingdoms now defined by region IDs dissolved into polygons rather than fixed radii on a stylised map. This phase, Historia Foundation, takes that migration from "wired up" to "trustworthy and complete": correct region boundaries, real historical content across all four eras, polished interaction, and a live deployment.
 
 The milestone structure follows a dependency the codebase itself imposes. The region-to-kingdom data pipeline (topology → region dissolve → kingdom geometry) is new and unproven at scale; before fixing it everywhere or filling in the remaining three eras of kingdom data, one kingdom is taken end to end as a reference. Content work (events, artifacts, kingdom data) and map fidelity work interleave rather than sitting in a strict sequence, so the dependency graph is wired at the task level, not the milestone level.
 
 ## Milestone sequence and the reasoning behind it
 
-**M1 Map Fidelity** starts with a seed task (1MF.0): get one kingdom's regions and data fully correct, proving the pipeline before applying it everywhere. Region boundary fixes (1MF.1) and the visual pass on kingdom fill/borders (1MF.3) build on that proof. Atlas-style colour and coastline refinement (1MF.2) is independent, since it touches rendering rather than region data. A spike (1MF.4) sits after the reference kingdom and the boundary fixes: some kingdoms in the historical record genuinely can't be drawn with confident borders, and this phase needs a deliberate decision (confidence bands, fuzzy edges, or omission) rather than an implicit one made kingdom-by-kingdom.
+**M1 Map Fidelity** starts with a seed task (1MF.0): get one kingdom's regions and data fully correct, proving the pipeline before applying it everywhere. That proof (East Anglia 700) showed the legacy hand-drawn regions can't be fixed in place, so the phase changes over to real boundary data: England migrates to Domesday hundreds (1MF.1); Wales, Scotland and Ireland get their own open sources (1MF.5, 1MF.6), which also retire the hand-drawn coastline. Every later map task, including colour and coastline refinement (1MF.2) and the fill/border pass (1MF.3), waits for that changeover. A side investigation (1MF.7) looks for boundaries finer than hundreds, starting with the Isle of Ely. A spike (1MF.4) sits after the reference kingdom and the boundary fixes: some kingdoms in the historical record genuinely can't be drawn with confident borders, and this phase needs a deliberate decision (confidence bands, fuzzy edges, or omission) rather than an implicit one made kingdom-by-kingdom.
 
 **M2 Content** expands events and artifacts (independent of map work) and fills remaining kingdoms data gaps, which depends on both the reference kingdom pattern and the uncertain-borders decision from the M1 spike, since filling in kingdoms without contested borders would need redoing once that decision lands.
 

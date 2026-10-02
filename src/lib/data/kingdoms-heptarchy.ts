@@ -1,4 +1,5 @@
 import type { HistoricalPeriod } from './types.js';
+import { eastAnglia700 } from './kingdom-east-anglia-700.js';
 
 // Region IDs map to geographic areas in static/data/british-isles.topo.json.
 // At render time, a kingdom's regions are dissolved (merged) into a single polygon.
@@ -234,15 +235,7 @@ export const heptarchyPeriods: Record<number, HistoricalPeriod> = {
 				color: '#6F84A8',
 				regions: ['essex', 'middlesex', 'hertfordshire', 'bedfordshire', 'oxford', 'buckinghamshire'],
 			},
-			{
-				id: 'east-anglia',
-				name: 'East Anglia',
-				type: 'anglian',
-				center: [1.0, 52.6],
-				territory: 'Kingdom of the East Angles — Norfolk and Suffolk',
-				color: '#9B8AAD',
-				regions: ['suffolk', 'norfolk', 'cambridgeshire'],
-			},
+			eastAnglia700,
 			{
 				id: 'mercia',
 				name: 'Mercia',
