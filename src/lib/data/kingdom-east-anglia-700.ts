@@ -113,7 +113,10 @@ export const eastAnglia700: Kingdom = {
 			url: 'https://www.british-history.ac.uk/vch/cambs/vol4/pp4-8'
 		},
 		{
-			citation: 'Fryde, Greenway, Porter and Roy (1986) Handbook of British Chronology, 3rd edn, p. 8',
+			citation: 'Fryde, Greenway, Porter and Roy (1986) Handbook of British Chronology, 3rd edn, p. 8'
+		},
+		{
+			citation: 'Wikipedia, List of monarchs of East Anglia (regnal dates)',
 			url: 'https://en.wikipedia.org/wiki/List_of_monarchs_of_East_Anglia'
 		},
 		{
