@@ -57,6 +57,17 @@ function geometryContains(geometry: GeoJSON.Geometry, point: [number, number]): 
 	);
 }
 
+describe('topology', () => {
+	it('has a bbox that covers every arc point', () => {
+		const [west, south, east, north] = topology.bbox!;
+		const points = topology.arcs.flat();
+		expect(Math.min(...points.map(([x]) => x))).toBeGreaterThanOrEqual(west);
+		expect(Math.min(...points.map(([, y]) => y))).toBeGreaterThanOrEqual(south);
+		expect(Math.max(...points.map(([x]) => x))).toBeLessThanOrEqual(east);
+		expect(Math.max(...points.map(([, y]) => y))).toBeLessThanOrEqual(north);
+	});
+});
+
 describe('kingdom data', () => {
 	it('references only regions that exist in the topology', () => {
 		const unknown = Object.entries(historicalPeriods).flatMap(([year, period]) =>

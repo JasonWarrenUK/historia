@@ -80,6 +80,11 @@ function shiftArcs(arcs: unknown, offset: number): unknown {
 // Appends hundreds to the legacy topology without re-encoding legacy arcs,
 // so legacy regions merge exactly as they did before
 function combineTopologies(legacy: Topology, hundreds: Topology): Topology {
+	// Quantised arcs are delta-encoded against a transform; mixing them with
+	// absolute coordinates would draw wrong shapes without any error
+	if (legacy.transform || hundreds.transform) {
+		throw new Error('combineTopologies expects unquantised topologies');
+	}
 	const offset = legacy.arcs.length;
 	const hundredsObject = hundreds.objects.hundreds as GeometryObject & {
 		geometries: (GeometryObject & { arcs?: unknown })[];
@@ -87,8 +92,18 @@ function combineTopologies(legacy: Topology, hundreds: Topology): Topology {
 	const geometries = hundredsObject.geometries.map((geometry) =>
 		'arcs' in geometry ? { ...geometry, arcs: shiftArcs(geometry.arcs, offset) } : geometry
 	);
+	const bbox =
+		legacy.bbox && hundreds.bbox
+			? [
+					Math.min(legacy.bbox[0], hundreds.bbox[0]),
+					Math.min(legacy.bbox[1], hundreds.bbox[1]),
+					Math.max(legacy.bbox[2], hundreds.bbox[2]),
+					Math.max(legacy.bbox[3], hundreds.bbox[3])
+				]
+			: undefined;
 	return {
 		...legacy,
+		bbox,
 		objects: {
 			regions: legacy.objects.regions,
 			hundreds: { type: 'GeometryCollection', geometries } as GeometryObject,
