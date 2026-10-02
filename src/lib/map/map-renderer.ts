@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import type { BritishIslesTopology } from '$lib/data/geo.js';
-import { getCoastlineGeoJSON, kingdomsToGeoJSON as buildKingdomsGeoJSON, britishIslesRiversGeoJSON, getKingdomBounds } from '$lib/data/geo.js';
+import { getCoastlineGeoJSON, kingdomsToGeoJSON as buildKingdomsGeoJSON, britishIslesRiversGeoJSON, getKingdomBounds, HUNDREDS_ATTRIBUTION } from '$lib/data/geo.js';
 import type { Kingdom, Artifact } from '$lib/data/types.js';
 import { ATLAS_COLORS, ATLAS_WIDTHS, ATLAS_OPACITIES } from './atlas-style.js';
 
@@ -69,6 +69,11 @@ export function createMap(
 		maxZoom: 12,
 		attributionControl: false
 	});
+
+	map.addControl(
+		new maplibregl.AttributionControl({ compact: true, customAttribution: HUNDREDS_ATTRIBUTION }),
+		'bottom-right'
+	);
 
 	map.on('load', () => {
 		// Coastline source — extracted from topology

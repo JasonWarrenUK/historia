@@ -3,10 +3,16 @@ import type { Topology, GeometryCollection, Polygon, MultiPolygon } from 'topojs
 
 export type RegionProperties = { id: string; name: string };
 
+export type HundredProperties = RegionProperties & { shire: string; terrId: string };
+
 export type BritishIslesTopology = Topology<{
 	regions: GeometryCollection<RegionProperties>;
+	hundreds: GeometryCollection<HundredProperties>;
 	coastline: GeometryCollection<{ name: string }>;
 }>;
+
+export const HUNDREDS_ATTRIBUTION =
+	'Hundreds: <a href="https://doi.org/10.5284/1058999">Brookes (2020), ADS</a>, reprojected and simplified; <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>';
 
 let cachedTopology: BritishIslesTopology | null = null;
 
@@ -26,7 +32,12 @@ export function mergeRegions(
 	topology: BritishIslesTopology,
 	regionIds: string[]
 ): GeoJSON.Geometry | null {
-	const geoms = topology.objects.regions.geometries.filter(
+	// Both objects share one arcs array, so merge can dissolve across them
+	const candidates = [
+		...topology.objects.regions.geometries,
+		...(topology.objects.hundreds?.geometries ?? [])
+	];
+	const geoms = candidates.filter(
 		(g): g is Polygon<RegionProperties> | MultiPolygon<RegionProperties> =>
 			g.properties != null &&
 			regionIds.includes((g.properties as RegionProperties).id) &&
@@ -43,7 +54,10 @@ export function kingdomsToGeoJSON(
 	const features: GeoJSON.Feature[] = [];
 	for (const k of kingdoms) {
 		const geometry = mergeRegions(topology, k.regions);
-		if (!geometry) continue;
+		if (!geometry) {
+			console.warn(`Kingdom "${k.id}" has no matching regions; not drawn`);
+			continue;
+		}
 		features.push({
 			type: 'Feature',
 			id: k.id,
