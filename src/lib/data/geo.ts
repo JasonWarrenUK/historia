@@ -74,6 +74,21 @@ export function kingdomsToGeoJSON(
 	return { type: 'FeatureCollection', features };
 }
 
+// One point per kingdom, so a kingdom drawn in several parts is labelled once
+export function kingdomLabelsToGeoJSON(
+	kingdoms: import('./types.js').Kingdom[]
+): GeoJSON.FeatureCollection {
+	return {
+		type: 'FeatureCollection',
+		features: kingdoms.map((k) => ({
+			type: 'Feature',
+			id: k.id,
+			properties: { id: k.id, name: k.name },
+			geometry: { type: 'Point', coordinates: k.center }
+		}))
+	};
+}
+
 export function getKingdomBounds(
 	topology: BritishIslesTopology,
 	regionIds: string[]

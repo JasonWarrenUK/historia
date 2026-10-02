@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { feature } from 'topojson-client';
-import { mergeRegions, kingdomsToGeoJSON, type BritishIslesTopology } from './geo.js';
+import { mergeRegions, kingdomsToGeoJSON, kingdomLabelsToGeoJSON, type BritishIslesTopology } from './geo.js';
 import { historicalPeriods } from './kingdoms.js';
 import { eastAnglia700 } from './kingdom-east-anglia-700.js';
 import * as fixtures from '../../../tests/fixtures/geo.js';
@@ -89,6 +89,15 @@ describe('kingdom data', () => {
 		for (const period of Object.values(historicalPeriods)) {
 			const collection = kingdomsToGeoJSON(topology, period.kingdoms);
 			expect(collection.features).toHaveLength(period.kingdoms.length);
+		}
+	});
+});
+
+describe('kingdom labels', () => {
+	it('labels each kingdom once, even when it is drawn in several parts', () => {
+		for (const period of Object.values(historicalPeriods)) {
+			const labels = kingdomLabelsToGeoJSON(period.kingdoms).features;
+			expect(labels.map((f) => f.properties!.id)).toEqual(period.kingdoms.map((k) => k.id));
 		}
 	});
 });
