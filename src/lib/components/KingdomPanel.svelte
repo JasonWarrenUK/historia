@@ -33,5 +33,57 @@
 			<MapPin size={12} class="shrink-0 mt-0.5" />
 			{kingdom.territory}
 		</p>
+
+		{#if kingdom.founded !== undefined || kingdom.ended !== undefined}
+			<p class="text-xs mt-2 text-ink-light">
+				<span class="font-serif text-gold">Dates:</span>
+				{kingdom.founded ?? '?'} to {kingdom.ended ?? '?'} CE
+			</p>
+		{/if}
+
+		{#if kingdom.capital}
+			<p class="text-xs mt-1 text-ink-light">
+				<span class="font-serif text-gold">Royal centre:</span>
+				{kingdom.capital.name}
+			</p>
+		{/if}
+
+		{#if kingdom.description}
+			<p class="text-xs mt-2 leading-relaxed text-ink-light">{kingdom.description}</p>
+		{/if}
+
+		{#if kingdom.rulers?.length}
+			<details class="text-xs mt-2 text-ink-light">
+				<summary class="font-serif cursor-pointer text-gold">
+					Rulers ({kingdom.rulers.length})
+				</summary>
+				<ul class="mt-1 space-y-0.5">
+					{#each kingdom.rulers as ruler (ruler.name)}
+						<li>{ruler.name} <span class="text-ink-muted">({ruler.reign})</span></li>
+					{/each}
+				</ul>
+			</details>
+		{/if}
+
+		{#if kingdom.sources?.length}
+			<details class="text-xs mt-2 text-ink-light">
+				<summary class="font-serif cursor-pointer text-gold">
+					Sources ({kingdom.sources.length})
+				</summary>
+				<ul class="mt-1 space-y-1 list-disc pl-4">
+					{#each kingdom.sources as source (source.citation)}
+						<li>
+							{#if source.url}
+								<a href={source.url} target="_blank" rel="noopener noreferrer" class="underline">
+									{source.citation}
+								</a>
+							{:else}
+								{source.citation}
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			</details>
+		{/if}
 	</div>
 {/if}
