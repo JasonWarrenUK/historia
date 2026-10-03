@@ -10,15 +10,15 @@ Establishes Historia's core: a real MapLibre-rendered map of Britain 300–1066 
 
 **Goal:** Get the MapLibre renderer and region data to a trustworthy, good-looking baseline
 
-- [ ] **1MF.0**: Establish one fully correct reference kingdom (regions dissolved correctly + complete data) to validate the region-to-kingdom pipeline end to end
-- [ ] **1MF.1**: Migrate every England kingdom in every period from legacy hand-drawn regions to Domesday hundreds (Brookes 2020), using East Anglia 700 as the pattern; empty knownLegacyDoubleAssignments _(blocked: depends on 1MF.0)_
+- [x] **1MF.0**: Establish one fully correct reference kingdom (regions dissolved correctly + complete data) to validate the region-to-kingdom pipeline end to end
+- [ ] **1MF.1**: Migrate every England kingdom in every period from legacy hand-drawn regions to Domesday hundreds (Brookes 2020), using East Anglia 700 as the pattern; empty knownLegacyDoubleAssignments _(depends on 1MF.0)_
 - [ ] **1MF.2**: Refine atlas-style colours and coastline rendering for visual fidelity _(blocked: depends on 1MF.6)_
 - [ ] **1MF.3**: Pass over kingdom fill and border treatment once boundaries are correct _(blocked: depends on 1MF.1, 1MF.6)_
 - [ ] **1MF.4**: Spike: decide how to represent kingdoms/borders for periods where the historical record only supports incomplete or contested boundaries (e.g. fuzzy-edge styling, confidence bands, omission vs approximation) _(blocked: depends on 1MF.0, 1MF.1, 1MF.6)_
   - Note: Research/design spike, not implementation; output is a decision the rest of M1/M2 border work can follow
-- [ ] **1MF.5**: Choose open boundary sources for Wales, Scotland and Ireland (no Domesday hundreds there: HCBP or OS 1888 counties, Tailte Éireann) and how to join them to Brookes without seams _(blocked: depends on 1MF.0)_
+- [ ] **1MF.5**: Choose open boundary sources for Wales, Scotland and Ireland (no Domesday hundreds there: HCBP or OS 1888 counties, Tailte Éireann) and how to join them to Brookes without seams _(depends on 1MF.0)_
 - [ ] **1MF.6**: Migrate Wales, Scotland and Ireland kingdoms to the chosen sources; delete the legacy topology and hand-drawn coastline, deriving the coastline from the new sources _(blocked: depends on 1MF.1, 1MF.5)_
-- [ ] **1MF.7**: Investigate the CAMPOP parish dataset licence and other sub-hundred boundary sources; resolve the Isle of Ely / northern fen (Thorney, Whittlesey) split _(blocked: depends on 1MF.0)_
+- [ ] **1MF.7**: Investigate the CAMPOP parish dataset licence and other sub-hundred boundary sources; resolve the Isle of Ely / northern fen (Thorney, Whittlesey) split _(depends on 1MF.0)_
   - Note: East Anglia 700 currently over-claims Thorney and Whittlesey
 
 ---
@@ -139,6 +139,7 @@ graph LR
 	4DP.3 --> M4
 	5HD.1 --> 5HD.2
 	5HD.2 --> M5
-	class 1MF.0,2CN.1,2CN.2,3UX.3,4DP.1,4DP.2,4DP.3 todo
-	class 1MF.1,1MF.2,1MF.3,1MF.4,1MF.5,1MF.6,1MF.7,2CN.3,3UX.1,3UX.2,3UX.4,5HD.1,5HD.2 blocked
+	class 1MF.1,1MF.5,1MF.7,2CN.1,2CN.2,3UX.3,4DP.1,4DP.2,4DP.3 todo
+	class 1MF.2,1MF.3,1MF.4,1MF.6,2CN.3,3UX.1,3UX.2,3UX.4,5HD.1,5HD.2 blocked
+	class 1MF.0 done
 ```
